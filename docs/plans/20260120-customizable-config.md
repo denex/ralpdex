@@ -10,7 +10,7 @@ Make ralphex fully customizable via configuration files with sensible defaults.
 ## Context (from discovery)
 - Files involved: `cmd/ralphex/main.go`, `pkg/processor/prompts.go`, `pkg/processor/runner.go`, `pkg/executor/executor.go`, `pkg/executor/codex.go`
 - Config values found: 4 prompts, claude command/args, codex model/timeout/sandbox, iteration_delay, task_retry_count, plans_dir, custom agents
-- Dependencies: embed.FS for defaults, simple key=value parser
+- Dependencies: embed.FS for defaults, gopkg.in/ini.v1 for config parsing
 
 ## Development Approach
 - **Testing approach**: TDD - write tests first
@@ -37,9 +37,11 @@ Make ralphex fully customizable via configuration files with sensible defaults.
 
 ## Config File Format
 
+Uses `gopkg.in/ini.v1` - supports `#` and `;` comments.
+
 ```ini
 # ralphex configuration
-# lines starting with # are comments
+; comments can use # or ;
 
 # claude executor
 claude_command = claude
@@ -75,11 +77,11 @@ plans_dir = docs/plans
 - [ ] write tests for Config struct defaults
 - [ ] run `go test ./pkg/config` - must pass before task 2
 
-### Task 2: Implement config file parser
-- [ ] create `pkg/config/parser.go` with key=value parser
-- [ ] handle comments (# lines)
-- [ ] handle empty lines
-- [ ] write tests for parser with various inputs (valid, invalid, edge cases)
+### Task 2: Implement config file loading with ini library
+- [ ] add `gopkg.in/ini.v1` dependency
+- [ ] create `pkg/config/parser.go` using ini.Load()
+- [ ] map ini keys to Config struct fields
+- [ ] write tests for loading config with various inputs
 - [ ] run `go test ./pkg/config` - must pass before task 3
 
 ### Task 3: Implement config loading with precedence
