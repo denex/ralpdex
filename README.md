@@ -59,6 +59,7 @@ ralphex --max-iterations 100 docs/plans/feature.md
 | `-r, --review` | Skip task execution, run full review pipeline | false |
 | `-c, --codex-only` | Skip tasks and first review, run only codex loop | false |
 | `-d, --debug` | Enable debug logging | false |
+| `--no-color` | Disable color output | false |
 
 ## Requirements
 

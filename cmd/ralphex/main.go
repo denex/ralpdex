@@ -12,9 +12,11 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/umputun/ralphex/pkg/progress"
+	"github.com/umputun/ralphex/pkg/runner"
 )
 
 // opts holds all command-line options.
@@ -23,6 +25,7 @@ type opts struct {
 	Review        bool `short:"r" long:"review" description:"skip task execution, run full review pipeline"`
 	CodexOnly     bool `short:"c" long:"codex-only" description:"skip tasks and first review, run only codex loop"`
 	Debug         bool `short:"d" long:"debug" description:"enable debug logging"`
+	NoColor       bool `long:"no-color" description:"disable color output"`
 
 	PlanFile string `positional-arg-name:"plan-file" description:"path to plan file (optional, uses fzf if omitted)"`
 }
@@ -83,13 +86,68 @@ func run(ctx context.Context, o opts) error {
 
 	// create branch if on main/master
 	if planFile != "" {
-		if err := createBranchIfNeeded(ctx, planFile); err != nil {
-			return err
+		if branchErr := createBranchIfNeeded(ctx, planFile); branchErr != nil {
+			return branchErr
 		}
 	}
 
-	// run main loop
-	return runLoop(ctx, o, planFile)
+	// ensure progress files are gitignored
+	if gitErr := ensureGitignore(ctx); gitErr != nil {
+		return gitErr
+	}
+
+	// determine mode
+	mode := runner.ModeFull
+	if o.CodexOnly {
+		mode = runner.ModeCodexOnly
+	} else if o.Review {
+		mode = runner.ModeReview
+	}
+
+	// get current branch for logging
+	out, _ := exec.CommandContext(ctx, "git", "branch", "--show-current").Output()
+	branch := strings.TrimSpace(string(out))
+
+	// create progress logger
+	log, err := progress.NewLogger(progress.Config{
+		PlanFile: planFile,
+		Mode:     string(mode),
+		Branch:   branch,
+		NoColor:  o.NoColor,
+	})
+	if err != nil {
+		return fmt.Errorf("create progress logger: %w", err)
+	}
+	defer log.Close()
+
+	// print startup info
+	planStr := planFile
+	if planStr == "" {
+		planStr = "(no plan - review only)"
+	}
+	modeStr := ""
+	if mode != runner.ModeFull {
+		modeStr = fmt.Sprintf(" (%s mode)", mode)
+	}
+	fmt.Printf("starting ralph loop: %s (max %d iterations)%s\n", planStr, o.MaxIterations, modeStr)
+	fmt.Printf("branch: %s\n", branch)
+	fmt.Printf("progress log: %s\n\n", log.Path())
+
+	// create and run the runner
+	r := runner.New(runner.Config{
+		PlanFile:      planFile,
+		Mode:          mode,
+		MaxIterations: o.MaxIterations,
+		Debug:         o.Debug,
+		NoColor:       o.NoColor,
+	}, log)
+
+	if err := r.Run(ctx); err != nil {
+		return fmt.Errorf("runner: %w", err)
+	}
+
+	fmt.Printf("\ncompleted in %s\n", log.Elapsed())
+	return nil
 }
 
 func selectPlan(ctx context.Context, planFile string, optional bool) (string, error) {
@@ -176,66 +234,6 @@ func createBranchIfNeeded(ctx context.Context, planFile string) error {
 	return nil
 }
 
-func runLoop(ctx context.Context, o opts, planFile string) error {
-	startTime := time.Now()
-
-	// get current branch for logging
-	out, _ := exec.CommandContext(ctx, "git", "branch", "--show-current").Output()
-	branch := strings.TrimSpace(string(out))
-
-	// ensure progress files are gitignored
-	if err := ensureGitignore(ctx); err != nil {
-		return err
-	}
-
-	// determine mode
-	mode := "full"
-	if o.CodexOnly {
-		mode = "codex-only"
-	} else if o.Review {
-		mode = "review"
-	}
-
-	// create progress file
-	progressPath := getProgressFilename(planFile, mode)
-	progressFile, err := os.Create(progressPath) //nolint:gosec // path derived from plan filename
-	if err != nil {
-		return fmt.Errorf("failed to create progress file: %w", err)
-	}
-	defer progressFile.Close()
-
-	// write progress header
-	planStr := planFile
-	if planStr == "" {
-		planStr = "(no plan - review only)"
-	}
-	fmt.Fprintf(progressFile, "# Ralph Progress Log\n")
-	fmt.Fprintf(progressFile, "Plan: %s\n", planStr)
-	fmt.Fprintf(progressFile, "Branch: %s\n", branch)
-	fmt.Fprintf(progressFile, "Mode: %s\n", mode)
-	fmt.Fprintf(progressFile, "Started: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(progressFile, "%s\n\n", strings.Repeat("-", 60))
-
-	modeStr := ""
-	if mode != "full" {
-		modeStr = fmt.Sprintf(" (%s mode)", mode)
-	}
-	fmt.Printf("starting ralph loop: %s (max %d iterations)%s\n", planStr, o.MaxIterations, modeStr)
-	fmt.Printf("branch: %s\n", branch)
-	fmt.Printf("progress log: %s\n\n", progressPath)
-
-	// TODO: implement task execution loop
-	// TODO: implement review passes
-	// TODO: implement codex integration
-
-	elapsed := time.Since(startTime)
-	fmt.Printf("\ncompleted in %s\n", formatElapsed(elapsed))
-	fmt.Fprintf(progressFile, "\n%s\n", strings.Repeat("-", 60))
-	fmt.Fprintf(progressFile, "Completed: %s (%s)\n", time.Now().Format("2006-01-02 15:04:05"), formatElapsed(elapsed))
-
-	return nil
-}
-
 func ensureGitignore(ctx context.Context) error {
 	// check if already ignored
 	if err := exec.CommandContext(ctx, "git", "check-ignore", "-q", "progress-test.txt").Run(); err == nil {
@@ -255,42 +253,4 @@ func ensureGitignore(ctx context.Context) error {
 
 	fmt.Println("added progress-*.txt to .gitignore")
 	return nil
-}
-
-func getProgressFilename(planFile, mode string) string {
-	if planFile != "" {
-		stem := strings.TrimSuffix(filepath.Base(planFile), ".md")
-		switch mode {
-		case "codex-only":
-			return fmt.Sprintf("progress-%s-codex.txt", stem)
-		case "review":
-			return fmt.Sprintf("progress-%s-review.txt", stem)
-		default:
-			return fmt.Sprintf("progress-%s.txt", stem)
-		}
-	}
-
-	switch mode {
-	case "codex-only":
-		return "progress-codex.txt"
-	case "review":
-		return "progress-review.txt"
-	default:
-		return "progress.txt"
-	}
-}
-
-func formatElapsed(d time.Duration) string {
-	seconds := int(d.Seconds())
-	if seconds < 60 {
-		return fmt.Sprintf("%ds", seconds)
-	}
-	minutes := seconds / 60
-	secs := seconds % 60
-	if minutes < 60 {
-		return fmt.Sprintf("%dm%ds", minutes, secs)
-	}
-	hours := minutes / 60
-	mins := minutes % 60
-	return fmt.Sprintf("%dh%dm%ds", hours, mins, secs)
 }

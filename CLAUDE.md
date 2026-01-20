@@ -15,8 +15,11 @@ make install    # install to ~/.local/bin
 ## Project Structure
 
 ```
-cmd/ralphex/    # main entry point with all logic
-docs/plans/     # plan files location
+cmd/ralphex/        # main entry point, CLI parsing
+pkg/executor/       # claude and codex CLI execution
+pkg/runner/         # orchestration loop, prompts, signals
+pkg/progress/       # timestamped logging with color
+docs/plans/         # plan files location
 ```
 
 ## Code Style

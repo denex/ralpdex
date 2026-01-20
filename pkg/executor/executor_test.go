@@ -1,0 +1,302 @@
+package executor
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/umputun/ralphex/pkg/executor/mocks"
+)
+
+func TestClaudeExecutor_Run_Success(t *testing.T) {
+	jsonStream := `{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello world COMPLETED"}}`
+
+	mock := &mocks.CommandRunnerMock{
+		RunFunc: func(_ context.Context, _ string, _ ...string) (io.Reader, func() error, error) {
+			return strings.NewReader(jsonStream), func() error { return nil }, nil
+		},
+	}
+	e := &ClaudeExecutor{cmdRunner: mock}
+
+	result := e.Run(context.Background(), "test prompt")
+
+	require.NoError(t, result.Error)
+	assert.Equal(t, "Hello world COMPLETED", result.Output)
+	assert.Equal(t, "COMPLETED", result.Signal)
+}
+
+func TestClaudeExecutor_Run_StartError(t *testing.T) {
+	mock := &mocks.CommandRunnerMock{
+		RunFunc: func(_ context.Context, _ string, _ ...string) (io.Reader, func() error, error) {
+			return nil, nil, errors.New("command not found")
+		},
+	}
+	e := &ClaudeExecutor{cmdRunner: mock}
+
+	result := e.Run(context.Background(), "test prompt")
+
+	require.Error(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "command not found")
+}
+
+func TestClaudeExecutor_Run_WaitError_WithOutput(t *testing.T) {
+	jsonStream := `{"type":"content_block_delta","delta":{"type":"text_delta","text":"partial output"}}`
+
+	mock := &mocks.CommandRunnerMock{
+		RunFunc: func(_ context.Context, _ string, _ ...string) (io.Reader, func() error, error) {
+			return strings.NewReader(jsonStream), func() error { return errors.New("exit status 1") }, nil
+		},
+	}
+	e := &ClaudeExecutor{cmdRunner: mock}
+
+	result := e.Run(context.Background(), "test prompt")
+
+	// should have output despite error
+	require.NoError(t, result.Error)
+	assert.Equal(t, "partial output", result.Output)
+}
+
+func TestClaudeExecutor_Run_WaitError_NoOutput(t *testing.T) {
+	mock := &mocks.CommandRunnerMock{
+		RunFunc: func(_ context.Context, _ string, _ ...string) (io.Reader, func() error, error) {
+			return strings.NewReader(""), func() error { return errors.New("exit status 1") }, nil
+		},
+	}
+	e := &ClaudeExecutor{cmdRunner: mock}
+
+	result := e.Run(context.Background(), "test prompt")
+
+	require.Error(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "claude exited with error")
+}
+
+func TestClaudeExecutor_Run_ContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	mock := &mocks.CommandRunnerMock{
+		RunFunc: func(_ context.Context, _ string, _ ...string) (io.Reader, func() error, error) {
+			return strings.NewReader(""), func() error { return context.Canceled }, nil
+		},
+	}
+	e := &ClaudeExecutor{cmdRunner: mock}
+
+	result := e.Run(ctx, "test prompt")
+
+	require.ErrorIs(t, result.Error, context.Canceled)
+}
+
+func TestClaudeExecutor_Run_WithOutputHandler(t *testing.T) {
+	jsonStream := `{"type":"content_block_delta","delta":{"type":"text_delta","text":"chunk1"}}
+{"type":"content_block_delta","delta":{"type":"text_delta","text":"chunk2"}}`
+
+	var chunks []string
+	mock := &mocks.CommandRunnerMock{
+		RunFunc: func(_ context.Context, _ string, _ ...string) (io.Reader, func() error, error) {
+			return strings.NewReader(jsonStream), func() error { return nil }, nil
+		},
+	}
+	e := &ClaudeExecutor{
+		cmdRunner:     mock,
+		OutputHandler: func(text string) { chunks = append(chunks, text) },
+	}
+
+	result := e.Run(context.Background(), "test prompt")
+
+	require.NoError(t, result.Error)
+	assert.Equal(t, "chunk1chunk2", result.Output)
+	assert.Equal(t, []string{"chunk1", "chunk2"}, chunks)
+}
+
+func TestClaudeExecutor_parseStream(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		wantOutput string
+		wantSignal string
+	}{
+		{
+			name:       "content block delta",
+			input:      `{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello world"}}`,
+			wantOutput: "Hello world",
+			wantSignal: "",
+		},
+		{
+			name: "multiple deltas",
+			input: `{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello "}}
+{"type":"content_block_delta","delta":{"type":"text_delta","text":"world"}}`,
+			wantOutput: "Hello world",
+			wantSignal: "",
+		},
+		{
+			name:       "completed signal",
+			input:      `{"type":"content_block_delta","delta":{"type":"text_delta","text":"Task done. COMPLETED"}}`,
+			wantOutput: "Task done. COMPLETED",
+			wantSignal: "COMPLETED",
+		},
+		{
+			name:       "failed signal",
+			input:      `{"type":"content_block_delta","delta":{"type":"text_delta","text":"Could not finish. FAILED"}}`,
+			wantOutput: "Could not finish. FAILED",
+			wantSignal: "FAILED",
+		},
+		{
+			name:       "review done signal",
+			input:      `{"type":"content_block_delta","delta":{"type":"text_delta","text":"Review complete. REVIEW_DONE"}}`,
+			wantOutput: "Review complete. REVIEW_DONE",
+			wantSignal: "REVIEW_DONE",
+		},
+		{
+			name:       "codex done signal",
+			input:      `{"type":"content_block_delta","delta":{"type":"text_delta","text":"Codex analysis complete. CODEX_DONE"}}`,
+			wantOutput: "Codex analysis complete. CODEX_DONE",
+			wantSignal: "CODEX_DONE",
+		},
+		{
+			name:       "result type",
+			input:      `{"type":"result","result":{"output":"Final output"}}`,
+			wantOutput: "Final output",
+			wantSignal: "",
+		},
+		{
+			name:       "empty lines ignored",
+			input:      "\n\n" + `{"type":"content_block_delta","delta":{"type":"text_delta","text":"text"}}` + "\n\n",
+			wantOutput: "text",
+			wantSignal: "",
+		},
+		{
+			name:       "invalid json ignored",
+			input:      "not json\n" + `{"type":"content_block_delta","delta":{"type":"text_delta","text":"valid"}}`,
+			wantOutput: "valid",
+			wantSignal: "",
+		},
+		{
+			name:       "unknown event type",
+			input:      `{"type":"unknown_type","data":"something"}`,
+			wantOutput: "",
+			wantSignal: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &ClaudeExecutor{}
+			result := e.parseStream(strings.NewReader(tc.input))
+
+			assert.Equal(t, tc.wantOutput, result.Output)
+			assert.Equal(t, tc.wantSignal, result.Signal)
+		})
+	}
+}
+
+func TestClaudeExecutor_parseStream_withHandler(t *testing.T) {
+	input := `{"type":"content_block_delta","delta":{"type":"text_delta","text":"chunk1"}}
+{"type":"content_block_delta","delta":{"type":"text_delta","text":"chunk2"}}`
+
+	var chunks []string
+	e := &ClaudeExecutor{
+		OutputHandler: func(text string) {
+			chunks = append(chunks, text)
+		},
+	}
+
+	result := e.parseStream(strings.NewReader(input))
+
+	assert.Equal(t, "chunk1chunk2", result.Output)
+	assert.Equal(t, []string{"chunk1", "chunk2"}, chunks)
+}
+
+func TestClaudeExecutor_parseStream_withDebug(t *testing.T) {
+	// invalid json line should be skipped with debug message
+	input := "not json\n" + `{"type":"content_block_delta","delta":{"type":"text_delta","text":"valid"}}`
+
+	e := &ClaudeExecutor{Debug: true}
+	result := e.parseStream(strings.NewReader(input))
+
+	assert.Equal(t, "valid", result.Output)
+}
+
+func TestClaudeExecutor_extractText(t *testing.T) {
+	e := &ClaudeExecutor{}
+
+	t.Run("content block delta", func(t *testing.T) {
+		event := streamEvent{Type: "content_block_delta"}
+		event.Delta.Type = "text_delta"
+		event.Delta.Text = "hello"
+		assert.Equal(t, "hello", e.extractText(&event))
+	})
+
+	t.Run("non-text delta", func(t *testing.T) {
+		event := streamEvent{Type: "content_block_delta"}
+		event.Delta.Type = "tool_use"
+		event.Delta.Text = "ignored"
+		assert.Empty(t, e.extractText(&event))
+	})
+
+	t.Run("result", func(t *testing.T) {
+		event := streamEvent{Type: "result"}
+		event.Result.Output = "final"
+		assert.Equal(t, "final", e.extractText(&event))
+	})
+
+	t.Run("message_stop with text content", func(t *testing.T) {
+		event := streamEvent{Type: "message_stop"}
+		event.Message.Content = []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}{
+			{Type: "text", Text: "final message"},
+		}
+		assert.Equal(t, "final message", e.extractText(&event))
+	})
+
+	t.Run("message_stop with non-text content", func(t *testing.T) {
+		event := streamEvent{Type: "message_stop"}
+		event.Message.Content = []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}{
+			{Type: "tool_use", Text: "ignored"},
+		}
+		assert.Empty(t, e.extractText(&event))
+	})
+
+	t.Run("message_stop with empty content", func(t *testing.T) {
+		event := streamEvent{Type: "message_stop"}
+		assert.Empty(t, e.extractText(&event))
+	})
+
+	t.Run("unknown type", func(t *testing.T) {
+		event := streamEvent{Type: "ping"}
+		assert.Empty(t, e.extractText(&event))
+	})
+}
+
+func TestDetectSignal(t *testing.T) {
+	tests := []struct {
+		text string
+		want string
+	}{
+		{"some text", ""},
+		{"task completed", "COMPLETED"},
+		{"COMPLETED", "COMPLETED"},
+		{"Operation FAILED", "FAILED"},
+		{"failed to compile", "FAILED"},
+		{"REVIEW_DONE", "REVIEW_DONE"},
+		{"Review_Done here", "REVIEW_DONE"},
+		{"CODEX_DONE analysis", "CODEX_DONE"},
+		{"codex_done", "CODEX_DONE"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.text, func(t *testing.T) {
+			got := detectSignal(tc.text)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
