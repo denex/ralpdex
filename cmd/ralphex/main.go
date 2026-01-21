@@ -32,6 +32,7 @@ type opts struct {
 	CodexOnly     bool `short:"c" long:"codex-only" description:"skip tasks and first review, run only codex loop"`
 	Debug         bool `short:"d" long:"debug" description:"enable debug logging"`
 	NoColor       bool `long:"no-color" description:"disable color output"`
+	Version       bool `short:"v" long:"version" description:"print version and exit"`
 
 	PlanFile string `positional-arg-name:"plan-file" description:"path to plan file (optional, uses fzf if omitted)"`
 }
@@ -52,6 +53,10 @@ func main() {
 			os.Exit(0)
 		}
 		os.Exit(1)
+	}
+
+	if o.Version {
+		os.Exit(0)
 	}
 
 	// handle positional argument
