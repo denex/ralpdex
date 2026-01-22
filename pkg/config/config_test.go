@@ -336,6 +336,16 @@ func TestConfig_installDefaults_SkipsWhenAllPathsExist(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(configDir, "config")) //nolint:gosec // test
 	require.NoError(t, err)
 	assert.Equal(t, customContent, string(data))
+
+	// empty prompts dir should get defaults installed
+	promptFiles, err := os.ReadDir(filepath.Join(configDir, "prompts"))
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(promptFiles), 4, "expected prompt files to be installed into empty dir")
+
+	// empty agents dir should get defaults installed
+	agentFiles, err := os.ReadDir(filepath.Join(configDir, "agents"))
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(agentFiles), 5, "expected agent files to be installed into empty dir")
 }
 
 func TestConfig_installDefaults_InstallsIfPromptsOrAgentsMissing(t *testing.T) {

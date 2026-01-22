@@ -2,18 +2,21 @@
   {
     "label": "run: ralphex (debug)",
     "command": "go run ./cmd/ralphex --debug",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false
   },
   {
     "label": "run: ralphex --review",
     "command": "go run ./cmd/ralphex --review --debug",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false
   },
   {
     "label": "test: all",
     "command": "go test -race -v ./...",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false
   },
@@ -41,18 +44,21 @@
   {
     "label": "lint",
     "command": "golangci-lint run",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false
   },
   {
     "label": "build",
     "command": "make build",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false
   },
   {
     "label": "install",
     "command": "make install",
+    "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false
   }

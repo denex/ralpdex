@@ -331,28 +331,6 @@ func (c *Config) parseEmbeddedColors() (ColorConfig, error) {
 // installDefaults creates the config directory and installs default config files
 // if they don't exist. this is called on first run to set up the configuration.
 func (c *Config) installDefaults() error {
-	// check if all expected paths exist
-	paths := []string{
-		filepath.Join(c.configDir, "config"),
-		filepath.Join(c.configDir, "prompts"),
-		filepath.Join(c.configDir, "agents"),
-	}
-
-	allExist := true
-	for _, p := range paths {
-		if _, err := os.Stat(p); err != nil {
-			if !os.IsNotExist(err) {
-				return fmt.Errorf("check path %s: %w", p, err)
-			}
-			allExist = false
-			break
-		}
-	}
-
-	if allExist {
-		return nil // already installed
-	}
-
 	// create config directory (0700 - user only)
 	if err := os.MkdirAll(c.configDir, 0o700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
@@ -388,12 +366,12 @@ func (c *Config) installDefaults() error {
 		}
 	}
 
-	// install default prompt files if not exist
+	// install default prompt files if directory is empty (installDefaultPrompts checks for existing .txt files)
 	if err := c.installDefaultPrompts(promptsDir); err != nil {
 		return fmt.Errorf("install default prompts: %w", err)
 	}
 
-	// install default agent files if not exist
+	// install default agent files if directory is empty (installDefaultAgents checks for existing .txt files)
 	if err := c.installDefaultAgents(agentsDir); err != nil {
 		return fmt.Errorf("install default agents: %w", err)
 	}
