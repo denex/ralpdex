@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0 - 2026-01-23
+
+### Added
+
+- Local project configuration support (`.ralphex/` directory) (#15)
+- Symlinked config directory support (9e337d7)
+- MkDocs documentation site with Cloudflare Pages deployment (f459c78)
+- CHANGELOG.md with release history (33b4cc5)
+
+### Changed
+
+- Refactored config module into focused submodules (values, colors, prompts, agents, defaults) (#15)
+- Adjusted terminal output colors for better readability (5d3d127)
+- Refactored main package to use option structs for functions with 4+ parameters (256b090)
+
 ## v0.2.3 - 2026-01-22
 
 ### Fixed
