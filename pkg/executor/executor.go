@@ -14,6 +14,10 @@ import (
 
 //go:generate moq -out mocks/command_runner.go -pkg mocks -skip-ensure -fmt goimports . CommandRunner
 
+// maxScannerBuffer is the maximum buffer size for bufio.Scanner.
+// set to 64MB to handle large outputs (e.g., diffs of large JSON files).
+const maxScannerBuffer = 64 * 1024 * 1024
+
 // Result holds execution result with output and detected signal.
 type Result struct {
 	Output string // accumulated text output
@@ -211,9 +215,9 @@ func (e *ClaudeExecutor) parseStream(r io.Reader) Result {
 	var signal string
 
 	scanner := bufio.NewScanner(r)
-	// increase buffer size for large JSON lines (16MB max for large diffs with parallel agents)
+	// increase buffer size for large JSON lines (large diffs with parallel agents)
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 16*1024*1024)
+	scanner.Buffer(buf, maxScannerBuffer)
 
 	for scanner.Scan() {
 		line := scanner.Text()
