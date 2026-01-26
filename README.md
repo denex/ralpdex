@@ -30,6 +30,13 @@ ralphex solves both problems. Each task executes in a fresh Claude Code session 
 
 </details>
 
+<details markdown>
+<summary>Web Dashboard Screenshot</summary>
+
+![ralphex web dashboard](assets/ralphex-web.png)
+
+</details>
+
 ## Features
 
 - **Zero setup** - works out of the box with sensible defaults, no configuration required
