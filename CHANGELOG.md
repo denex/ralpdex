@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.6.0 - 2026-01-29
+
+### Added
+
+- Plan draft preview with user feedback loop - interactive review before finalizing plans (#51)
+- Error pattern detection for rate limits and API failures - graceful exit with help suggestions (#49)
+- Commented defaults with auto-update support - user customizations preserved, defaults auto-updated (#48)
+- `{{DEFAULT_BRANCH}}` template variable for prompts and agents (#46)
+- Auto-create initial commit for empty repositories (#41)
+- Claude Code plugin infrastructure with marketplace support (#40) @nniel-ape
+- Glamour-based markdown rendering for plan draft preview
+- Modern landing page with docs subdirectory
+
+### Changed
+
+- Refactored git package: introduced Service as single public API (#44)
+- Refactored main.go into extracted packages (pkg/plan, pkg/web/dashboard) (#43)
+
+### Fixed
+
+- Resolve `{{PLAN_FILE}}` to completed/ path after plan is moved (#50)
+- Handle context cancellation during interactive input prompts (#42) @chloyka
+- Use injected logger instead of stderr in MovePlanToCompleted
+- Site: prevent horizontal scrolling on mobile, fix CF build, SEO improvements
+- Site: serve raw .md files in assets/claude/
+
 ## v0.5.0 - 2026-01-28
 
 ### Added
