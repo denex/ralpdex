@@ -83,7 +83,7 @@ fi
 
 # ralphex config: mount directory and symlink targets under $HOME
 if [[ -d "${HOME}/.config/ralphex" ]]; then
-    VOLUMES+=(-v "$(resolve "${HOME}/.config/ralphex"):/home/app/.config/ralphex:ro")
+    VOLUMES+=(-v "$(resolve "${HOME}/.config/ralphex"):/home/app/.config/ralphex")
     for target in $(symlink_target_dirs "${HOME}/.config/ralphex"); do
         [[ -d "$target" && "$target" == "${HOME}"/* ]] && VOLUMES+=(-v "${target}:${target}:ro")
     done
