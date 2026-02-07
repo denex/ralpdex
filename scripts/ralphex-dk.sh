@@ -114,6 +114,15 @@ if [[ -n "$CREDS_TEMP" ]]; then
     (sleep 10; rm -f "$CREDS_TEMP") &
 fi
 
+# only bind port when --serve/-s is requested (avoids conflicts with concurrent instances)
+PORT_ARGS=()
+for arg in "$@"; do
+    if [[ "$arg" == "--serve" || "$arg" == "-s" ]]; then
+        PORT_ARGS=(-p "${PORT}:${PORT}")
+        break
+    fi
+done
+
 # run docker - foreground for interactive (TTY needed), background for non-interactive
 if [[ -t 0 ]]; then
     # interactive mode: run in foreground so TTY works
@@ -122,7 +131,7 @@ if [[ -t 0 ]]; then
         -e SKIP_HOME_CHOWN=1 \
         -e INIT_QUIET=1 \
         -e CLAUDE_CONFIG_DIR=/home/app/.claude \
-        -p "${PORT}:${PORT}" \
+        "${PORT_ARGS[@]}" \
         "${VOLUMES[@]}" \
         -w /workspace \
         "${IMAGE}" /srv/ralphex "$@"
@@ -133,7 +142,7 @@ else
         -e SKIP_HOME_CHOWN=1 \
         -e INIT_QUIET=1 \
         -e CLAUDE_CONFIG_DIR=/home/app/.claude \
-        -p "${PORT}:${PORT}" \
+        "${PORT_ARGS[@]}" \
         "${VOLUMES[@]}" \
         -w /workspace \
         "${IMAGE}" /srv/ralphex "$@" &
