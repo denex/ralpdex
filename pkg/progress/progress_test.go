@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
@@ -309,9 +310,23 @@ func TestLogger_Elapsed(t *testing.T) {
 	require.NoError(t, err)
 	defer l.Close()
 
-	elapsed := l.Elapsed()
-	// go-humanize returns "now" for very short durations
-	assert.NotEmpty(t, elapsed)
+	tests := []struct {
+		name     string
+		offset   time.Duration
+		expected string
+	}{
+		{"instant", 0, "0s"},
+		{"seconds only", 45 * time.Second, "45s"},
+		{"minutes and seconds", 5*time.Minute + 30*time.Second, "5m30s"},
+		{"hours and minutes", 1*time.Hour + 23*time.Minute + 45*time.Second, "1h23m"},
+		{"exact hour", 2 * time.Hour, "2h0m"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			l.startTime = time.Now().Add(-tc.offset)
+			assert.Equal(t, tc.expected, l.Elapsed())
+		})
+	}
 }
 
 func TestLogger_Close(t *testing.T) {

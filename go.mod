@@ -4,7 +4,6 @@ go 1.25
 
 require (
 	github.com/charmbracelet/glamour v0.10.0
-	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-billy/v5 v5.7.0

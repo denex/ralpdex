@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"golang.org/x/term"
 
@@ -468,8 +467,13 @@ func (l *Logger) LogDraftReview(action, feedback string) {
 }
 
 // Elapsed returns formatted elapsed time since start.
+// for durations >= 1 hour, truncates to minutes (e.g. "1h23m"); otherwise to seconds (e.g. "5m30s").
 func (l *Logger) Elapsed() string {
-	return humanize.RelTime(l.startTime, time.Now(), "", "")
+	d := time.Since(l.startTime)
+	if d >= time.Hour {
+		return strings.TrimSuffix(d.Truncate(time.Minute).String(), "0s")
+	}
+	return d.Truncate(time.Second).String()
 }
 
 // Close writes footer, releases the file lock, and closes the progress file.
