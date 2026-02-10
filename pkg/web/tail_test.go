@@ -474,7 +474,7 @@ func TestTailer_ParseLineDeferred(t *testing.T) {
 
 		// plain line triggers deferred emission with time.Now()
 		events = tailer.parseLineDeferred("some plain text")
-		require.Len(t, events, 2) // Section + Output (review sections don't produce TaskStart)
+		require.Len(t, events, 2) // section + Output (review sections don't produce TaskStart)
 		assert.Equal(t, EventTypeSection, events[0].Type)
 		assert.Equal(t, "review iteration 1", events[0].Section)
 		assert.Equal(t, status.PhaseReview, events[0].Phase)
@@ -524,7 +524,7 @@ func TestTailer_ParseLineDeferred(t *testing.T) {
 		_ = tailer.parseLineDeferred("--- codex analysis ---")
 		events := tailer.parseLineDeferred("[26-01-22 10:30:45] codex output")
 
-		require.Len(t, events, 2) // Section + Output
+		require.Len(t, events, 2) // section + Output
 		assert.Equal(t, status.PhaseCodex, events[0].Phase)
 		assert.Equal(t, status.PhaseCodex, events[1].Phase)
 	})

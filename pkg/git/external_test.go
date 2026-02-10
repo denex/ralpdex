@@ -189,44 +189,6 @@ func TestExternalBackend_CurrentBranch(t *testing.T) {
 	})
 }
 
-func TestExternalBackend_IsMainBranch(t *testing.T) {
-	t.Run("returns true on main or master", func(t *testing.T) {
-		dir := setupExternalTestRepo(t)
-		eb, err := newExternalBackend(dir)
-		require.NoError(t, err)
-
-		// default branch from git init is usually master or main
-		isMain, err := eb.IsMainBranch()
-		require.NoError(t, err)
-		assert.True(t, isMain)
-	})
-
-	t.Run("returns false for feature branch", func(t *testing.T) {
-		dir := setupExternalTestRepo(t)
-		eb, err := newExternalBackend(dir)
-		require.NoError(t, err)
-
-		require.NoError(t, eb.CreateBranch("feature-x"))
-		isMain, err := eb.IsMainBranch()
-		require.NoError(t, err)
-		assert.False(t, isMain)
-	})
-
-	t.Run("returns false for detached HEAD", func(t *testing.T) {
-		dir := setupExternalTestRepo(t)
-		eb, err := newExternalBackend(dir)
-		require.NoError(t, err)
-
-		hash, err := eb.headHash()
-		require.NoError(t, err)
-		runGit(t, dir, "checkout", hash)
-
-		isMain, err := eb.IsMainBranch()
-		require.NoError(t, err)
-		assert.False(t, isMain)
-	})
-}
-
 func TestExternalBackend_GetDefaultBranch(t *testing.T) {
 	t.Run("returns existing default branch", func(t *testing.T) {
 		dir := setupExternalTestRepo(t)
@@ -898,14 +860,6 @@ func TestCrossBackend_CleanRepo(t *testing.T) {
 		assert.Equal(t, intBranch, extBranch)
 	})
 
-	t.Run("IsMainBranch", func(t *testing.T) {
-		intMain, err := internal.IsMainBranch()
-		require.NoError(t, err)
-		extMain, err := external.IsMainBranch()
-		require.NoError(t, err)
-		assert.Equal(t, intMain, extMain)
-	})
-
 	t.Run("GetDefaultBranch", func(t *testing.T) {
 		assert.Equal(t, internal.GetDefaultBranch(), external.GetDefaultBranch())
 	})
@@ -1124,15 +1078,6 @@ func TestCrossBackend_FeatureBranch(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, intBranch, extBranch)
 		assert.Equal(t, "feature-test", intBranch)
-	})
-
-	t.Run("IsMainBranch on feature", func(t *testing.T) {
-		intMain, err := internal.IsMainBranch()
-		require.NoError(t, err)
-		extMain, err := external.IsMainBranch()
-		require.NoError(t, err)
-		assert.Equal(t, intMain, extMain)
-		assert.False(t, intMain)
 	})
 
 	t.Run("BranchExists feature", func(t *testing.T) {

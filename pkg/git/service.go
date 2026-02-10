@@ -25,7 +25,6 @@ type backend interface {
 	headHash() (string, error)
 	HasCommits() (bool, error)
 	CurrentBranch() (string, error)
-	IsMainBranch() (bool, error)
 	GetDefaultBranch() string
 	BranchExists(name string) bool
 	CreateBranch(name string) error
@@ -115,11 +114,11 @@ func (s *Service) CurrentBranch() (string, error) {
 
 // IsMainBranch returns true if the current branch is "main" or "master".
 func (s *Service) IsMainBranch() (bool, error) {
-	isMain, err := s.repo.IsMainBranch()
+	branch, err := s.repo.CurrentBranch()
 	if err != nil {
 		return false, fmt.Errorf("is main branch: %w", err)
 	}
-	return isMain, nil
+	return branch == "main" || branch == "master", nil
 }
 
 // GetDefaultBranch returns the default branch name.
@@ -150,20 +149,16 @@ func (s *Service) CreateBranch(name string) error {
 // If on main/master, extracts branch name from plan file and creates/switches to it.
 // If plan file has uncommitted changes and is the only dirty file, auto-commits it.
 func (s *Service) CreateBranchForPlan(planFile string) error {
-	isMain, err := s.repo.IsMainBranch()
+	currentBranch, err := s.repo.CurrentBranch()
 	if err != nil {
-		return fmt.Errorf("check main branch: %w", err)
+		return fmt.Errorf("check current branch: %w", err)
 	}
 
-	if !isMain {
+	if currentBranch != "main" && currentBranch != "master" {
 		return nil // already on feature branch
 	}
 
 	branchName := plan.ExtractBranchName(planFile)
-	currentBranch, err := s.repo.CurrentBranch()
-	if err != nil {
-		return fmt.Errorf("get current branch: %w", err)
-	}
 
 	// check for uncommitted changes to files other than the plan
 	hasOtherChanges, err := s.repo.HasChangesOtherThan(planFile)

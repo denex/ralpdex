@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,6 +58,69 @@ func TestNewService(t *testing.T) {
 		dir := t.TempDir()
 		_, err := NewService(dir, noopServiceLogger(), WithExternalGit())
 		assert.Error(t, err)
+	})
+}
+
+func TestService_IsMainBranch(t *testing.T) {
+	t.Run("returns true for master branch", func(t *testing.T) {
+		dir := setupTestRepo(t)
+		svc, err := NewService(dir, noopServiceLogger())
+		require.NoError(t, err)
+
+		isMain, err := svc.IsMainBranch()
+		require.NoError(t, err)
+		assert.True(t, isMain)
+	})
+
+	t.Run("returns true for main branch", func(t *testing.T) {
+		dir := setupTestRepo(t)
+		svc, err := NewService(dir, noopServiceLogger())
+		require.NoError(t, err)
+
+		err = svc.CreateBranch("main")
+		require.NoError(t, err)
+
+		isMain, err := svc.IsMainBranch()
+		require.NoError(t, err)
+		assert.True(t, isMain)
+	})
+
+	t.Run("returns false for feature branch", func(t *testing.T) {
+		dir := setupTestRepo(t)
+		svc, err := NewService(dir, noopServiceLogger())
+		require.NoError(t, err)
+
+		err = svc.CreateBranch("feature-test")
+		require.NoError(t, err)
+
+		isMain, err := svc.IsMainBranch()
+		require.NoError(t, err)
+		assert.False(t, isMain)
+	})
+
+	t.Run("returns false for detached HEAD", func(t *testing.T) {
+		dir := setupTestRepo(t)
+		svc, err := NewService(dir, noopServiceLogger())
+		require.NoError(t, err)
+
+		hash, err := svc.HeadHash()
+		require.NoError(t, err)
+
+		// checkout commit directly via go-git to create detached HEAD
+		r, err := openRepo(dir)
+		require.NoError(t, err)
+		wt, err := r.gitRepo.Worktree()
+		require.NoError(t, err)
+		err = wt.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(hash)})
+		require.NoError(t, err)
+
+		// re-open service to pick up detached HEAD state
+		svc, err = NewService(dir, noopServiceLogger())
+		require.NoError(t, err)
+
+		isMain, err := svc.IsMainBranch()
+		require.NoError(t, err)
+		assert.False(t, isMain)
 	})
 }
 

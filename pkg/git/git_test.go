@@ -1241,65 +1241,6 @@ func TestRepo_CreateInitialCommit(t *testing.T) {
 	})
 }
 
-func TestRepo_IsMainBranch(t *testing.T) {
-	t.Run("returns true for master branch", func(t *testing.T) {
-		dir := setupTestRepo(t)
-		r, err := openRepo(dir)
-		require.NoError(t, err)
-
-		isMain, err := r.IsMainBranch()
-		require.NoError(t, err)
-		assert.True(t, isMain)
-	})
-
-	t.Run("returns true for main branch", func(t *testing.T) {
-		dir := setupTestRepo(t)
-		r, err := openRepo(dir)
-		require.NoError(t, err)
-
-		// rename master to main
-		err = r.CreateBranch("main")
-		require.NoError(t, err)
-
-		isMain, err := r.IsMainBranch()
-		require.NoError(t, err)
-		assert.True(t, isMain)
-	})
-
-	t.Run("returns false for feature branch", func(t *testing.T) {
-		dir := setupTestRepo(t)
-		r, err := openRepo(dir)
-		require.NoError(t, err)
-
-		err = r.CreateBranch("feature-test")
-		require.NoError(t, err)
-
-		isMain, err := r.IsMainBranch()
-		require.NoError(t, err)
-		assert.False(t, isMain)
-	})
-
-	t.Run("returns false for detached HEAD", func(t *testing.T) {
-		dir := setupTestRepo(t)
-		r, err := openRepo(dir)
-		require.NoError(t, err)
-
-		// get current HEAD hash
-		head, err := r.gitRepo.Head()
-		require.NoError(t, err)
-
-		// checkout the commit hash directly (detached HEAD)
-		wt, err := r.gitRepo.Worktree()
-		require.NoError(t, err)
-		err = wt.Checkout(&git.CheckoutOptions{Hash: head.Hash()})
-		require.NoError(t, err)
-
-		isMain, err := r.IsMainBranch()
-		require.NoError(t, err)
-		assert.False(t, isMain)
-	})
-}
-
 func TestRepo_GetDefaultBranch(t *testing.T) {
 	t.Run("returns master for repo with only master branch", func(t *testing.T) {
 		dir := setupTestRepo(t) // creates repo with master branch

@@ -535,15 +535,6 @@ func (r *repo) fileHasChanges(s *git.FileStatus) bool {
 		s.Worktree == git.Modified || s.Worktree == git.Deleted || s.Worktree == git.Untracked
 }
 
-// IsMainBranch returns true if the current branch is "main" or "master".
-func (r *repo) IsMainBranch() (bool, error) {
-	branch, err := r.CurrentBranch()
-	if err != nil {
-		return false, fmt.Errorf("get current branch: %w", err)
-	}
-	return branch == "main" || branch == "master", nil
-}
-
 // GetDefaultBranch returns the default branch name.
 // detects the default branch in this order:
 // 1. check origin/HEAD symbolic reference (most reliable for repos with remotes)

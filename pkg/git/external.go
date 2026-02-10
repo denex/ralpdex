@@ -126,15 +126,6 @@ func (e *externalBackend) CurrentBranch() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// IsMainBranch returns true if the current branch is "main" or "master".
-func (e *externalBackend) IsMainBranch() (bool, error) {
-	branch, err := e.CurrentBranch()
-	if err != nil {
-		return false, fmt.Errorf("get current branch: %w", err)
-	}
-	return branch == "main" || branch == "master", nil
-}
-
 // GetDefaultBranch returns the default branch name.
 // detects from origin/HEAD symbolic reference, falls back to checking common branch names.
 func (e *externalBackend) GetDefaultBranch() string {
