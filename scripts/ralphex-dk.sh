@@ -179,7 +179,9 @@ def _security_find_credentials(service_name: str) -> Optional[str]:
 def build_volumes(creds_temp: Optional[Path], claude_home: Optional[Path] = None) -> list[str]:
     """build docker volume mount arguments, returns flat list like ['-v', 'src:dst', ...]."""
     home = Path.home()
-    cwd = Path.cwd()
+    # use logical PWD when available to preserve symlinks (matches previous bash wrapper behavior)
+    pwd_env = os.environ.get("PWD")
+    cwd = Path(pwd_env) if pwd_env else Path(os.getcwd())
     if claude_home is None:
         claude_home = home / ".claude"
     vols: list[str] = []
@@ -256,7 +258,7 @@ def handle_update_script(script_path: Path) -> int:
         # download
         fd_closed = False
         try:
-            with urlopen(SCRIPT_URL) as resp:  # noqa: S310
+            with urlopen(SCRIPT_URL, timeout=30) as resp:  # noqa: S310
                 data = resp.read()
             with os.fdopen(fd, "wb") as f:
                 fd_closed = True
@@ -297,12 +299,9 @@ def handle_update_script(script_path: Path) -> int:
             )
             sys.stderr.writelines(diff)
 
-        try:
-            sys.stderr.write("update wrapper? (y/N) ")
-            sys.stderr.flush()
-            answer = sys.stdin.readline()
-        except EOFError:
-            answer = ""
+        sys.stderr.write("update wrapper? (y/N) ")
+        sys.stderr.flush()
+        answer = sys.stdin.readline()  # returns "" on EOF, treated as "no"
 
         if answer.strip().lower() == "y":
             shutil.copy2(tmp_path, str(script_path))
@@ -579,7 +578,9 @@ def run_tests() -> None:
 
         def test_includes_workspace(self) -> None:
             vols = build_volumes(None)
-            workspace_mount = f"{Path.cwd()}:/workspace"
+            pwd_env = os.environ.get("PWD")
+            cwd = Path(pwd_env) if pwd_env else Path(os.getcwd())
+            workspace_mount = f"{cwd}:/workspace"
             self.assertIn(workspace_mount, vols)
 
         def test_includes_claude_dir(self) -> None:

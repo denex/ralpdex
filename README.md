@@ -241,7 +241,7 @@ Then use `ralphex` as usual - it runs in a container with Claude Code and Codex 
 **Requirements:**
 - Python 3.9+ (for the wrapper script)
 - Docker installed and running
-- Claude Code credentials in `~/.claude/`
+- Claude Code credentials in `~/.claude/` (or in `$CLAUDE_CONFIG_DIR` when set)
 - Codex credentials in `~/.codex/` (optional, for codex review phase)
 - Git config in `~/.gitconfig` (for commits)
 
