@@ -6,16 +6,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/umputun/ralphex/pkg/config"
 )
 
 // agentRefPattern matches {{agent:name}} template syntax
 var agentRefPattern = regexp.MustCompile(`\{\{agent:([a-zA-Z0-9_-]+)\}\}`)
-
-// agentExpansionTemplate is the wrapper for expanded agent references
-const agentExpansionTemplate = `Use the Task tool to launch a general-purpose agent with this prompt:
-"%s"
-
-Report findings only - no positive observations.`
 
 // getGoal returns the goal string based on whether a plan file is configured.
 func (r *Runner) getGoal() string {
@@ -100,6 +96,24 @@ func (r *Runner) replaceVariablesWithIteration(prompt string, isFirstIteration b
 	return result
 }
 
+// formatAgentExpansion creates the Task tool instruction for an agent, respecting frontmatter overrides.
+func (r *Runner) formatAgentExpansion(prompt string, opts config.Options) string {
+	subagent := "general-purpose"
+	if opts.AgentType != "" {
+		subagent = opts.AgentType
+	}
+
+	var modelClause string
+	if opts.Model != "" {
+		modelClause = " with model=" + opts.Model
+	}
+
+	return fmt.Sprintf(`Use the Task tool%s to launch a %s agent with this prompt:
+"%s"
+
+Report findings only - no positive observations.`, modelClause, subagent, prompt)
+}
+
 // expandAgentReferences replaces {{agent:name}} patterns with Task tool instructions.
 // returns prompt unchanged if AppConfig is nil or no agents are configured.
 // missing agents log a warning and leave the reference as-is for visibility.
@@ -113,25 +127,27 @@ func (r *Runner) expandAgentReferences(prompt string) string {
 	}
 
 	// build agent lookup map
-	agentMap := make(map[string]string, len(agents))
+	agentMap := make(map[string]config.CustomAgent, len(agents))
 	for _, agent := range agents {
-		agentMap[agent.Name] = agent.Prompt
+		agentMap[agent.Name] = agent
 	}
 
 	return agentRefPattern.ReplaceAllStringFunc(prompt, func(match string) string {
 		// extract name directly from match: {{agent:NAME}} -> NAME
 		name := match[8 : len(match)-2] // skip "{{agent:" and "}}"
 
-		agentPrompt, ok := agentMap[name]
+		agent, ok := agentMap[name]
 		if !ok {
 			r.log.Print("[WARN] agent %q not found, leaving reference unexpanded", name)
 			return match
 		}
 
-		// expand variables in agent content (no agent expansion to avoid recursion)
-		agentPrompt = r.replaceBaseVariables(agentPrompt)
+		r.log.Print("agent %q: %s", name, agent.Options)
 
-		return fmt.Sprintf(agentExpansionTemplate, agentPrompt)
+		// expand variables in agent content (no agent expansion to avoid recursion)
+		agentPrompt := r.replaceBaseVariables(agent.Prompt)
+
+		return r.formatAgentExpansion(agentPrompt, agent.Options)
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -84,13 +85,12 @@ func (al *agentLoader) loadFromDir(agentsDir string) ([]CustomAgent, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		if prompt == "" {
 			continue
 		}
 
 		name := strings.TrimSuffix(entry.Name(), ".txt")
-		agents = append(agents, CustomAgent{Name: name, Prompt: prompt})
+		agents = append(agents, al.buildAgent(name, prompt))
 	}
 
 	sort.Slice(agents, func(i, j int) bool {
@@ -109,10 +109,11 @@ func (al *agentLoader) loadFileWithFallback(path, filename string) (string, erro
 		return "", fmt.Errorf("read agent file %s: %w", path, err)
 	}
 	content := strings.TrimSpace(stripComments(string(data)))
-	if content != "" {
+	if _, body := parseOptions(content); body != "" {
 		return content, nil
 	}
-	// fall back to embedded default
+	// fall back to embedded default, frontmatter options (if any) are dropped
+	log.Printf("[WARN] agent %s: no prompt body, falling back to embedded default (frontmatter options dropped)", filename)
 	return al.loadFromEmbedFS(filename)
 }
 
@@ -151,9 +152,8 @@ func (al *agentLoader) loadAllFromEmbedFS() ([]CustomAgent, error) {
 		if prompt == "" {
 			continue
 		}
-
 		name := strings.TrimSuffix(entry.Name(), ".txt")
-		agents = append(agents, CustomAgent{Name: name, Prompt: prompt})
+		agents = append(agents, al.buildAgent(name, prompt))
 	}
 
 	sort.Slice(agents, func(i, j int) bool {
@@ -161,4 +161,20 @@ func (al *agentLoader) loadAllFromEmbedFS() ([]CustomAgent, error) {
 	})
 
 	return agents, nil
+}
+
+// buildAgent parses frontmatter options from prompt and builds a CustomAgent.
+// if parseOptions produces no body, the raw prompt is used with default options.
+func (al *agentLoader) buildAgent(name, prompt string) CustomAgent {
+	opts, body := parseOptions(prompt)
+	if body == "" {
+		return CustomAgent{Name: name, Prompt: prompt}
+	}
+	if warnings := opts.Validate(); len(warnings) > 0 {
+		for _, w := range warnings {
+			log.Printf("[WARN] agent %s: %s", name, w)
+		}
+		opts = Options{}
+	}
+	return CustomAgent{Name: name, Prompt: body, Options: opts}
 }
