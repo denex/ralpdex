@@ -198,9 +198,9 @@ curl -sL https://raw.githubusercontent.com/umputun/ralphex/master/scripts/ralphe
 chmod +x /usr/local/bin/ralphex
 ```
 
-The script defaults to the Go image (`ralphex-go`). For other languages, use the base image:
+The script defaults to the Go image (`ralphex-go`). For other languages, build a custom image from the base with your toolchain installed (see [Available images](#available-images) for examples), then point the wrapper at it:
 ```bash
-export RALPHEX_IMAGE=ghcr.io/umputun/ralphex:latest
+export RALPHEX_IMAGE=my-ralphex
 ```
 
 Then use `ralphex` as usual - it runs in a container with Claude Code and Codex pre-installed. The script shows which image it's using at startup.
@@ -263,8 +263,8 @@ Two images are published:
 
 | Image | Description |
 |-------|-------------|
-| `ghcr.io/umputun/ralphex:latest` | Base image for any language |
-| `ghcr.io/umputun/ralphex-go:latest` | Go development (extends base) |
+| `ghcr.io/umputun/ralphex:latest` | Base image with Claude Code, Codex, and core tools |
+| `ghcr.io/umputun/ralphex-go:latest` | Go development (extends base with Go toolchain) |
 
 **Base image includes:**
 
@@ -295,7 +295,7 @@ Two images are published:
 RALPHEX_IMAGE=ghcr.io/umputun/ralphex-go:latest ralphex docs/plans/feature.md
 ```
 
-**For other languages**, extend the base image. Example `Dockerfile-go` (used to build `ralphex-go`):
+**For other languages**, create a custom image by extending the base with your language toolchain. The Go image (`Dockerfile-go`) shows the pattern:
 
 ```dockerfile
 FROM ghcr.io/umputun/ralphex:latest
@@ -315,7 +315,7 @@ RUN wget -qO- https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/inst
     GOBIN=/usr/local/bin go install golang.org/x/tools/cmd/goimports@latest
 ```
 
-Similar pattern for Rust, Java, etc:
+Same approach for Rust, Java, or any other language:
 ```dockerfile
 FROM ghcr.io/umputun/ralphex:latest
 
