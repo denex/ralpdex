@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.10.4 - 2026-02-11
+
+### Changed
+
+- Add 5-second force exit after SIGINT and suppress ^C echo (#87)
+- Add FAQ entry about adjusting course during execution
+
+### Fixed
+
+- Restore terminal state before force exit on interrupt timeout
+
 ## v0.10.3 - 2026-02-11
 
 ### Fixed
