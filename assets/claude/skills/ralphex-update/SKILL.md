@@ -50,70 +50,68 @@ ls -la <config-dir>/
 
 If it doesn't exist, inform user that ralphex hasn't been configured yet and there's nothing to update.
 
+## How ralphex Config Files Work
+
+ralphex installs config, prompt, and agent files with all content **commented out** (every line prefixed with `# `). At runtime, `stripComments()` removes these lines, finds nothing, and falls back to **embedded defaults** compiled into the binary. These all-commented files are functionally identical to missing files — they are do-nothing placeholders.
+
+When ralphex is updated, new embedded defaults take effect **automatically** for every file that hasn't been customized. No file changes are needed.
+
+A file is **customized** only if it contains at least one uncommented, non-empty line that was intentionally modified by the user. The `--dump-defaults` command produces the raw (uncommented) embedded content for comparison.
+
 ## Step 3: Compare Files
 
 For each file in the defaults dump (`config`, `prompts/*.txt`, `agents/*.txt`), compare with the corresponding file in the user's config directory.
 
+**Algorithm to detect customized files**: a file is customized if it contains at least one non-empty line that does NOT start with `#`. Files that are missing, empty, or contain only comment lines (`# ...`) and whitespace are do-nothing defaults.
+
 **Classify each file into one of these categories:**
 
-### Category A: Missing or All-Commented (auto-update candidate)
-- File doesn't exist in user's config, OR
-- File exists but contains only comments and whitespace (never customized)
-- **Action**: can be auto-updated with new commented default
+### Skip (do-nothing default)
+- File is missing in user's config, OR
+- File is empty, OR
+- File contains only comments and whitespace (every non-empty line starts with `#`)
+- **Action**: no action needed — embedded defaults handle it automatically
 
-### Category B: Customized (needs smart merge)
-- File exists with actual (uncommented) content that differs from the new default
+Note: files that exist only in the dump directory (no corresponding user file) are also do-nothing — do NOT offer to install them. Files that exist only in the user's config directory (no corresponding dump file) are user-created custom files — ignore them entirely.
+
+### Skip (unchanged)
+- File has uncommented content that matches the raw dump default
+- **Action**: no action needed — user's file already matches current defaults
+
+**How to compare**: strip all `#`-prefixed lines from BOTH the user's file and the dump file, then compare the remaining non-comment content. This handles the config file where the dump has descriptive comment lines mixed with value lines — only the actual values matter for comparison.
+
+### Smart merge needed
+- File has uncommented content that differs from the raw dump default (after stripping `#`-prefixed lines from both sides)
 - **Action**: needs Claude to semantically analyze and propose merge
-
-### Category C: No Change Needed
-- File matches the current default (either exact match or equivalent content)
-- **Action**: skip
-
-### Category D: New File
-- File exists in defaults but has no corresponding file in user's config at all
-- **Action**: offer to install as commented template
-
-**How to classify**: Read both the default file (from dump dir) and the user's file. Check if user's file has any uncommented lines. Compare the default content with user's content.
 
 ## Step 4: Present Summary
 
-Show the user a summary grouped by category:
+Show the user a summary with two groups:
 
 ```
 ralphex config update summary:
 
-No changes needed:
-  prompts/task.txt, prompts/review_first.txt, agents/quality.txt
+No changes needed (N files):
+  prompts/task.txt, prompts/review_first.txt, agents/quality.txt, prompts/codex.txt, ...
 
-Auto-update (never customized):
-  prompts/codex.txt, agents/documentation.txt
-
-Smart merge needed (customized):
+Smart merge needed (N files):
   prompts/review_second.txt, agents/implementation.txt
-
-New files available:
-  prompts/finalize.txt
 ```
 
-Use AskUserQuestion to confirm proceeding:
+If nothing needs merging, report "all config files are up to date — no changes needed" and skip to cleanup.
+
+Otherwise, use AskUserQuestion to confirm proceeding:
 - header: "Proceed"
-- question: "Apply updates? Auto-updates will install new commented defaults. Smart merges will be reviewed one by one."
+- question: "Review smart merges? Each customized file will be reviewed one by one."
 - options:
   - label: "Yes, proceed"
-    description: "Apply auto-updates and review smart merges one at a time"
+    description: "Review and merge customized files one at a time"
   - label: "Skip, just show details"
     description: "Show what changed without modifying anything"
 
-## Step 5: Process Auto-Updates (Category A and D)
+If user selects "Skip, just show details": for each file needing smart merge, show the diff between the user's file and the new default, then skip to Step 6 (Cleanup) without modifying any files.
 
-For files that were never customized (all-commented or missing):
-1. Read the new default content
-2. Comment out all lines (prefix with `# `)
-3. Write to the user's config directory
-
-Report: "Updated N files with new defaults (commented out)"
-
-## Step 6: Process Smart Merges (Category B)
+## Step 5: Process Smart Merges
 
 For each customized file that needs merging:
 
@@ -144,7 +142,7 @@ For each customized file that needs merging:
 
 6. Apply the user's choice
 
-## Step 7: Cleanup
+## Step 6: Cleanup
 
 Remove the temp directory:
 
@@ -155,9 +153,8 @@ rm -rf <dump-dir>
 Report final summary:
 ```
 Update complete:
-  Auto-updated: N files
+  Skipped: N files (no changes needed)
   Smart-merged: N files (M accepted, K kept)
-  Skipped: N files (no changes)
 ```
 
 ## Merge Principles

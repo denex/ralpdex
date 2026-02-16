@@ -154,7 +154,7 @@ When user asks to install the `/ralphex-plan` command:
 
 ### /ralphex-update Skill
 
-Smart-merges updated embedded defaults into user's customized prompts/agents. Compares current defaults with installed config, auto-updates untouched files, and uses Claude to semantically merge changes into customized files while preserving user intent.
+Smart-merges updated embedded defaults into user's customized prompts/agents. Compares current defaults with installed config, skips untouched files (embedded defaults handle them automatically), and uses Claude to semantically merge changes into customized files while preserving user intent.
 
 When user asks to install the `/ralphex-update` command:
 1. Fetch `https://ralphex.com/assets/claude/ralphex-update.md`
