@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.13.0 - 2026-02-16
+
+### Added
+
+- Interactive plan review to `--plan` mode (#114)
+
+### Improved
+
+- Fix llms.txt link for docs site, add finalize step section to README
+
+### Fixed
+
+- Simplify ralphex-update skill to skip do-nothing config files
+- Fix Windows comment to reference Setsid instead of Setpgid (#112)
+
 ## v0.12.1 - 2026-02-15
 
 ### Fixed
