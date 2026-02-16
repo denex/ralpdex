@@ -72,7 +72,7 @@ Configuration directory: `~/.config/ralphex/` (override with `--config-dir` or `
 - `{{PLAN_FILE}}` - path to plan file
 - `{{PROGRESS_FILE}}` - path to progress log
 - `{{GOAL}}` - goal description
-- `{{DEFAULT_BRANCH}}` - detected default branch (main, master, etc.)
+- `{{DEFAULT_BRANCH}}` - detected default branch (main, master, etc.), overridable via `default_branch` config option
 - `{{agent:name}}` - expands to Task tool instructions for named agent
 - `{{DIFF_INSTRUCTION}}` - git diff command for current iteration (in custom_review.txt)
 
