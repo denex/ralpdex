@@ -88,7 +88,7 @@ func (r *Runner) getDiffInstruction(isFirstIteration bool) string {
 }
 
 // replaceVariablesWithIteration replaces all template variables including iteration-aware ones.
-// supported: {{PLAN_FILE}}, {{PROGRESS_FILE}}, {{GOAL}}, {{DEFAULT_BRANCH}}, {{DIFF_INSTRUCTION}}, {{agent:name}}
+// supported: {{PLAN_FILE}}, {{PROGRESS_FILE}}, {{GOAL}}, {{DEFAULT_BRANCH}}, {{PLANS_DIR}}, {{DIFF_INSTRUCTION}}, {{agent:name}}
 // this variant is used when iteration context is needed (e.g., custom review prompts).
 func (r *Runner) replaceVariablesWithIteration(prompt string, isFirstIteration bool) string {
 	result := r.replaceBaseVariables(prompt)
@@ -153,7 +153,7 @@ func (r *Runner) expandAgentReferences(prompt string) string {
 }
 
 // replacePromptVariables replaces all template variables including agent references.
-// supported: {{PLAN_FILE}}, {{PROGRESS_FILE}}, {{GOAL}}, {{DEFAULT_BRANCH}}, {{agent:name}}
+// supported: {{PLAN_FILE}}, {{PROGRESS_FILE}}, {{GOAL}}, {{DEFAULT_BRANCH}}, {{PLANS_DIR}}, {{agent:name}}
 // note: {{CODEX_OUTPUT}} and {{PLAN_DESCRIPTION}} are handled by specific build functions.
 func (r *Runner) replacePromptVariables(prompt string) string {
 	result := r.replaceBaseVariables(prompt)
