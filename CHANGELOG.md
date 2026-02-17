@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.14.0 - 2026-02-17
+
+### Added
+
+- `--base-ref` and `--skip-finalize` CLI flags (#117)
+- `default_branch` config option for specifying review diff base (#115)
+
+### Fixed
+
+- Use os.Getwd() in toRelPath for correct relative path in startup banner
+
 ## v0.13.0 - 2026-02-16
 
 ### Added
