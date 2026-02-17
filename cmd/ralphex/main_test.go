@@ -570,6 +570,45 @@ func TestPrintStartupInfo(t *testing.T) {
 	})
 }
 
+func TestToRelPath(t *testing.T) {
+	// toRelPath uses filepath.Rel with resolved symlinks, so we need real paths.
+	// use t.TempDir, chdir into it, then build absolute paths using Getwd
+	// (same way plan.Select uses filepath.Abs which calls Getwd).
+	tmpDir := t.TempDir()
+	origDir, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(origDir)) })
+
+	// use Getwd to get the resolved cwd (same as filepath.Abs would)
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	t.Run("converts_absolute_to_relative", func(t *testing.T) {
+		absPath := filepath.Join(cwd, "docs", "plans", "feature.md")
+		result := toRelPath(absPath)
+		assert.Equal(t, filepath.Join("docs", "plans", "feature.md"), result)
+		assert.False(t, filepath.IsAbs(result), "path should be relative, got: %s", result)
+	})
+
+	t.Run("converts_absolute_completed_path", func(t *testing.T) {
+		absPath := filepath.Join(cwd, "docs", "plans", "completed", "feature.md")
+		result := toRelPath(absPath)
+		assert.Equal(t, filepath.Join("docs", "plans", "completed", "feature.md"), result)
+		assert.False(t, filepath.IsAbs(result), "path should be relative, got: %s", result)
+	})
+
+	t.Run("keeps_relative_path_as_is", func(t *testing.T) {
+		result := toRelPath("docs/plans/feature.md")
+		assert.Equal(t, "docs/plans/feature.md", result)
+	})
+
+	t.Run("handles_path_outside_cwd", func(t *testing.T) {
+		result := toRelPath("/some/other/project/plan.md")
+		assert.NotEmpty(t, result)
+	})
+}
+
 // noopLogger returns a no-op git.Logger for tests using moq-generated mock.
 func noopLogger() *gitmocks.LoggerMock {
 	return &gitmocks.LoggerMock{

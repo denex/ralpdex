@@ -682,7 +682,11 @@ func dumpDefaults(dir string) error {
 
 // toRelPath converts an absolute path to relative (from cwd). returns original on error.
 func toRelPath(p string) string {
-	rel, err := filepath.Rel(".", p)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return p
+	}
+	rel, err := filepath.Rel(cwd, p)
 	if err != nil {
 		return p
 	}
