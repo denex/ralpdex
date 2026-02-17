@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.15.0 - 2026-02-17
+
+### Added
+
+- Shell completions for bash, zsh, and fish (#120) @paskal
+
+### Improved
+
+- Replace bufio.Scanner with unbounded line reader for stream parsing (#124)
+- Use verbose completions for zsh and fish descriptions (#122) @paskal
+- Exclude false-positive gosec rules for golangci-lint v2.10.1
+
+### Fixed
+
+- Use plans_dir from config in make_plan prompt (#126) @animedetector
+- Add PLANS_DIR to doc comments, remove duplicate plan file
+
 ## v0.14.0 - 2026-02-17
 
 ### Added
