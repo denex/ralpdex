@@ -347,7 +347,7 @@ func (e *externalBackend) diffStats(baseBranch string) (DiffStats, error) {
 		return DiffStats{}, nil //nolint:nilerr // no HEAD means no stats
 	}
 
-	baseCmd := exec.CommandContext(context.Background(), "git", "rev-parse", baseRef) //nolint:gosec // baseRef from resolveRef, not user input
+	baseCmd := exec.CommandContext(context.Background(), "git", "rev-parse", baseRef)
 	baseCmd.Dir = e.path
 	baseOut, err := baseCmd.Output()
 	if err != nil {

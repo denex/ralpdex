@@ -25,7 +25,7 @@ func (c *customChannel) send(ctx context.Context, r Result) error {
 		return fmt.Errorf("marshal result: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, c.scriptPath) //nolint:gosec // path comes from user config, not user input
+	cmd := exec.CommandContext(ctx, c.scriptPath)
 	cmd.Stdin = bytes.NewReader(data)
 
 	var stdout, stderr bytes.Buffer

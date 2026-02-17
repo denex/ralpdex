@@ -130,7 +130,7 @@ func (c *TerminalCollector) hasFzf() bool {
 func (c *TerminalCollector) selectWithFzf(ctx context.Context, question string, options []string) (string, error) {
 	input := strings.Join(options, "\n")
 
-	cmd := exec.CommandContext(ctx, "fzf", "--prompt", question+": ", "--height", "10", "--layout=reverse") //nolint:gosec // fzf is a trusted external tool, question is user-provided prompt text
+	cmd := exec.CommandContext(ctx, "fzf", "--prompt", question+": ", "--height", "10", "--layout=reverse")
 	cmd.Stdin = strings.NewReader(input)
 	cmd.Stderr = os.Stderr
 
