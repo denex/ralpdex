@@ -690,9 +690,9 @@ func (r *Runner) showExternalReviewSummary(toolName, output string) {
 		summary = summary[:idx]
 	}
 
-	// limit to maxCodexSummaryLen chars
-	if len(summary) > maxCodexSummaryLen {
-		summary = summary[:maxCodexSummaryLen] + "..."
+	// limit to maxCodexSummaryLen runes to avoid splitting multi-byte characters
+	if runes := []rune(summary); len(runes) > maxCodexSummaryLen {
+		summary = string(runes[:maxCodexSummaryLen]) + "..."
 	}
 
 	summary = strings.TrimSpace(summary)
