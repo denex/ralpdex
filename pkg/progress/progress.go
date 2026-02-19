@@ -133,8 +133,9 @@ type Config struct {
 }
 
 // NewLogger creates a logger writing to both a progress file and stdout.
-// if the progress file already exists with content, existing log is preserved
-// and a restart separator is written instead of a full header.
+// if the progress file already exists with a completion footer, it is truncated
+// and a fresh header is written. if the file exists without a completion footer
+// (interrupted run), existing log is preserved and a restart separator is written.
 // colors must be provided (created via NewColors from config).
 // holder is the shared PhaseHolder for reading the current execution phase.
 func NewLogger(cfg Config, colors *Colors, holder *status.PhaseHolder) (*Logger, error) {
@@ -152,7 +153,7 @@ func NewLogger(cfg Config, colors *Colors, holder *status.PhaseHolder) (*Logger,
 		}
 	}
 
-	f, err := os.OpenFile(progressPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // path derived from plan filename
+	f, err := os.OpenFile(progressPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // path derived from plan filename
 	if err != nil {
 		return nil, fmt.Errorf("open progress file: %w", err)
 	}
@@ -176,7 +177,21 @@ func NewLogger(cfg Config, colors *Colors, holder *status.PhaseHolder) (*Logger,
 		f.Close()
 		return nil, fmt.Errorf("stat progress file: %w", err)
 	}
+
 	restart := fi.Size() > 0
+
+	// if the file has a completion footer from a previous run, truncate and start fresh.
+	// this prevents mixing unrelated content when the same plan filename is reused.
+	// reads from the locked fd directly to avoid TOCTOU path-vs-inode mismatch.
+	if restart && isProgressCompleted(f, fi.Size()) {
+		if tErr := f.Truncate(0); tErr != nil {
+			_ = unlockFile(f)
+			unregisterActiveLock(f.Name())
+			f.Close()
+			return nil, fmt.Errorf("truncate completed progress file: %w", tErr)
+		}
+		restart = false
+	}
 
 	l := &Logger{
 		file:      f,
@@ -534,6 +549,31 @@ func (l *Logger) writeFile(format string, args ...any) {
 
 func (l *Logger) writeStdout(format string, args ...any) {
 	fmt.Fprintf(l.stdout, format, args...)
+}
+
+// isProgressCompleted checks if a progress file has a completion footer written by Close().
+// reads the last ~256 bytes from the provided file descriptor and checks for the dash separator
+// followed by "Completed:" — the exact pattern Close() writes.
+// uses the already-locked fd to avoid TOCTOU path-vs-inode mismatch.
+// returns false for zero-size files or read errors.
+func isProgressCompleted(f *os.File, size int64) bool {
+	if size == 0 {
+		return false
+	}
+
+	// read the last 256 bytes (or less if file is smaller)
+	const tailSize int64 = 256
+	offset := max(0, size-tailSize)
+
+	buf := make([]byte, tailSize)
+	n, err := f.ReadAt(buf, offset)
+	if err != nil && n == 0 {
+		return false
+	}
+
+	// match the exact pattern written by Close(): 60-dash separator followed by "Completed:".
+	// a plain "Completed:" check would false-positive on Claude output containing that text.
+	return strings.Contains(string(buf[:n]), strings.Repeat("-", 60)+"\nCompleted:")
 }
 
 // progressDir is the directory for progress files within the project.

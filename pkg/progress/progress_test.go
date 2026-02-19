@@ -82,7 +82,7 @@ func TestNewLogger_AppendOnRestart(t *testing.T) {
 	colors := testColors()
 	cfg := Config{PlanFile: "docs/plans/feature.md", Mode: "full", Branch: "main"}
 
-	// create first logger, write some content, close it
+	// create first logger, write some content
 	holder := &status.PhaseHolder{}
 	l1, err := NewLogger(cfg, colors, holder)
 	require.NoError(t, err)
@@ -93,9 +93,15 @@ func TestNewLogger_AppendOnRestart(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(firstContent), "# Ralphex Progress Log")
 	assert.Contains(t, string(firstContent), "first session output")
-	require.NoError(t, l1.Close())
 
-	// create second logger with same config (simulates restart)
+	// simulate interrupted run: release lock and close file WITHOUT writing footer.
+	// this mimics a crash/kill where Close() was never called.
+	_ = unlockFile(l1.file)
+	unregisterActiveLock(l1.file.Name())
+	l1.file.Close()
+	l1.file = nil // prevent double close in deferred cleanup
+
+	// create second logger with same config (simulates restart after crash)
 	l2, err := NewLogger(cfg, colors, holder)
 	require.NoError(t, err)
 	l2.Print("second session output")
@@ -454,6 +460,90 @@ func TestLogger_LogDiffStats_ZeroFiles(t *testing.T) {
 	content, err := os.ReadFile(l.Path())
 	require.NoError(t, err)
 	assert.NotContains(t, string(content), "DIFFSTATS:")
+}
+
+func TestIsProgressCompleted(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	sep := strings.Repeat("-", 60)
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"file with footer", "some content\n" + sep + "\nCompleted: 2026-01-15 10:30:00 (5m30s)\n", true},
+		{"file without footer", "some content\n--- restarted at 2026-01-15 10:30:00 ---\nmore content\n", false},
+		{"empty file", "", false},
+		{"footer in middle and end", "Completed: old\nmore\n" + sep + "\nCompleted: 2026-01-15 11:00:00 (2m)\n", true},
+		{"completed without dash separator", "log line\nCompleted: now\n", false},
+		{"completed in log output", "[ts] task said: Completed: the migration\nmore work\n", false},
+		{"no completed substring", "some text without the keyword", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(tmpDir, tc.name+".txt")
+			require.NoError(t, os.WriteFile(path, []byte(tc.content), 0o600))
+			f, err := os.Open(path) //nolint:gosec // test file path from t.TempDir
+			require.NoError(t, err)
+			defer f.Close()
+			fi, err := f.Stat()
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, isProgressCompleted(f, fi.Size()))
+		})
+	}
+
+	t.Run("zero size", func(t *testing.T) {
+		assert.False(t, isProgressCompleted(nil, 0))
+	})
+}
+
+func TestNewLogger_FreshStartAfterCompleted(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	require.NoError(t, os.Chdir(tmpDir))
+	defer func() { _ = os.Chdir(origDir) }()
+
+	colors := testColors()
+	cfg := Config{PlanFile: "docs/plans/feature.md", Mode: "full", Branch: "main"}
+
+	// create first logger, write content, close it (writes "Completed:" footer)
+	holder := &status.PhaseHolder{}
+	l1, err := NewLogger(cfg, colors, holder)
+	require.NoError(t, err)
+	l1.Print("first session output")
+	progressPath := l1.Path()
+	require.NoError(t, l1.Close())
+
+	// verify first session has footer
+	content1, err := os.ReadFile(progressPath) //nolint:gosec // test file path from logger
+	require.NoError(t, err)
+	assert.Contains(t, string(content1), "Completed:")
+	assert.Contains(t, string(content1), "first session output")
+
+	// create second logger with same config — should truncate and start fresh
+	l2, err := NewLogger(cfg, colors, holder)
+	require.NoError(t, err)
+	assert.Equal(t, progressPath, l2.Path()) // verify both loggers use the same file
+	l2.Print("second session output")
+	require.NoError(t, l2.Close())
+
+	content2, err := os.ReadFile(l2.Path())
+	require.NoError(t, err)
+	contentStr := string(content2)
+
+	// old content gone
+	assert.NotContains(t, contentStr, "first session output")
+
+	// no restart separator
+	assert.NotContains(t, contentStr, "--- restarted at")
+
+	// fresh header written
+	assert.Contains(t, contentStr, "# Ralphex Progress Log")
+	assert.Equal(t, 1, strings.Count(contentStr, "# Ralphex Progress Log"))
+
+	// new content present
+	assert.Contains(t, contentStr, "second session output")
 }
 
 func TestGetProgressFilename(t *testing.T) {
