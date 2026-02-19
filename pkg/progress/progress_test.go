@@ -96,9 +96,9 @@ func TestNewLogger_AppendOnRestart(t *testing.T) {
 
 	// simulate interrupted run: release lock and close file WITHOUT writing footer.
 	// this mimics a crash/kill where Close() was never called.
-	_ = unlockFile(l1.file)
+	require.NoError(t, unlockFile(l1.file))
 	unregisterActiveLock(l1.file.Name())
-	l1.file.Close()
+	require.NoError(t, l1.file.Close())
 	l1.file = nil // prevent double close in deferred cleanup
 
 	// create second logger with same config (simulates restart after crash)

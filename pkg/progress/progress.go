@@ -215,7 +215,7 @@ func NewLogger(cfg Config, colors *Colors, holder *status.PhaseHolder) (*Logger,
 		l.writeFile("Branch: %s\n", cfg.Branch)
 		l.writeFile("Mode: %s\n", cfg.Mode)
 		l.writeFile("Started: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-		l.writeFile("%s\n\n", strings.Repeat("-", 60))
+		l.writeFile("%s\n\n", separatorLine)
 	}
 
 	return l, nil
@@ -231,6 +231,10 @@ func (l *Logger) Path() string {
 
 // timestampFormat is the format for timestamps: YY-MM-DD HH:MM:SS
 const timestampFormat = "06-01-02 15:04:05"
+
+// separatorLine is the 60-dash separator used in the header and completion footer.
+// isProgressCompleted relies on this exact value to detect completed files.
+var separatorLine = strings.Repeat("-", 60)
 
 // Print writes a timestamped message to both file and stdout.
 func (l *Logger) Print(format string, args ...any) {
@@ -528,7 +532,7 @@ func (l *Logger) Close() error {
 		return nil
 	}
 
-	l.writeFile("\n%s\n", strings.Repeat("-", 60))
+	l.writeFile("\n%s\n", separatorLine)
 	l.writeFile("Completed: %s (%s)\n", time.Now().Format("2006-01-02 15:04:05"), l.Elapsed())
 
 	// release file lock before closing
@@ -573,7 +577,7 @@ func isProgressCompleted(f *os.File, size int64) bool {
 
 	// match the exact pattern written by Close(): 60-dash separator followed by "Completed:".
 	// a plain "Completed:" check would false-positive on Claude output containing that text.
-	return strings.Contains(string(buf[:n]), strings.Repeat("-", 60)+"\nCompleted:")
+	return strings.Contains(string(buf[:n]), separatorLine+"\nCompleted:")
 }
 
 // progressDir is the directory for progress files within the project.
