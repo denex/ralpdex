@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.15.2 - 2026-02-18
+
+### Improved
+
+- Add codex wrapper script for alternative provider support (#133) @umputun
+- Add custom providers documentation
+
+### Fixed
+
+- Detect completed progress files and start fresh on reuse (#134) @umputun
+- Ensure fallback result event fires when codex exits non-zero
+
 ## v0.15.1 - 2026-02-18
 
 ### Fixed
