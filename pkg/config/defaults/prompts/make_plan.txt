@@ -36,6 +36,7 @@ If this is your first iteration (no Q&A in progress file):
 - Understand the project structure
 - Identify existing conventions and patterns
 - Find related code that will inform the implementation
+- Use web search when up-to-date or external facts are needed for an accurate plan
 
 ## Step 3: Ask Clarifying Questions (if needed)
 

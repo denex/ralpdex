@@ -191,8 +191,8 @@ func TestLoad_PartialConfig(t *testing.T) {
 	assert.Equal(t, "custom/plans", cfg.PlansDir)
 
 	// missing values filled from embedded defaults
-	assert.Equal(t, "claude", cfg.ClaudeCommand)
-	assert.Equal(t, "--dangerously-skip-permissions --output-format stream-json --verbose", cfg.ClaudeArgs)
+	assert.Equal(t, "codex", cfg.ClaudeCommand)
+	assert.Equal(t, `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, cfg.ClaudeArgs)
 	assert.Equal(t, "codex", cfg.CodexCommand)
 	assert.Equal(t, "gpt-5.3-codex", cfg.CodexModel)
 	assert.Equal(t, "xhigh", cfg.CodexReasoningEffort)
@@ -217,8 +217,8 @@ func TestLoad_EmptyConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// all values should come from embedded defaults
-	assert.Equal(t, "claude", cfg.ClaudeCommand)
-	assert.Equal(t, "--dangerously-skip-permissions --output-format stream-json --verbose", cfg.ClaudeArgs)
+	assert.Equal(t, "codex", cfg.ClaudeCommand)
+	assert.Equal(t, `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, cfg.ClaudeArgs)
 	assert.Equal(t, "codex", cfg.CodexCommand)
 	assert.Equal(t, "gpt-5.3-codex", cfg.CodexModel)
 	assert.Equal(t, "xhigh", cfg.CodexReasoningEffort)
@@ -649,7 +649,7 @@ color_task = #0000ff
 	assert.Equal(t, 3, cfg.TaskRetryCount)
 
 	// embedded defaults (not in global or local)
-	assert.Equal(t, "--dangerously-skip-permissions --output-format stream-json --verbose", cfg.ClaudeArgs)
+	assert.Equal(t, `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, cfg.ClaudeArgs)
 	assert.Equal(t, "codex", cfg.CodexCommand)
 	assert.Equal(t, "gpt-5.3-codex", cfg.CodexModel)
 

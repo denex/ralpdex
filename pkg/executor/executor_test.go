@@ -73,7 +73,7 @@ func TestClaudeExecutor_Run_WaitError_NoOutput(t *testing.T) {
 	result := e.Run(context.Background(), "test prompt")
 
 	require.Error(t, result.Error)
-	assert.Contains(t, result.Error.Error(), "claude exited with error")
+	assert.Contains(t, result.Error.Error(), "codex exited with error")
 }
 
 func TestClaudeExecutor_Run_ContextCanceled(t *testing.T) {
@@ -375,6 +375,7 @@ func TestClaudeExecutor_Run_WithCustomArgs(t *testing.T) {
 	}
 	e := &ClaudeExecutor{
 		cmdRunner: mock,
+		Command:   "claude",
 		Args:      "--custom-arg --another-arg value",
 	}
 
@@ -383,6 +384,26 @@ func TestClaudeExecutor_Run_WithCustomArgs(t *testing.T) {
 	require.NoError(t, result.Error)
 	// should use custom args plus prompt args
 	assert.Equal(t, []string{"--custom-arg", "--another-arg", "value", "-p", "test prompt"}, capturedArgs)
+}
+
+func TestClaudeExecutor_Run_WithCodexCommand_UsesPositionalPrompt(t *testing.T) {
+	var capturedArgs []string
+	mock := &mocks.CommandRunnerMock{
+		RunFunc: func(_ context.Context, _ string, args ...string) (io.Reader, func() error, error) {
+			capturedArgs = args
+			return strings.NewReader(`{"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}`), func() error { return nil }, nil
+		},
+	}
+	e := &ClaudeExecutor{
+		cmdRunner: mock,
+		Command:   "codex",
+		Args:      `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex"`,
+	}
+
+	result := e.Run(context.Background(), "test prompt")
+
+	require.NoError(t, result.Error)
+	assert.Equal(t, []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "-c", "model=gpt-5.3-codex", "test prompt"}, capturedArgs)
 }
 
 func TestClaudeExecutor_Run_WithCustomCommandAndArgs(t *testing.T) {
@@ -423,6 +444,7 @@ func TestSplitArgs(t *testing.T) {
 		{name: "mixed quotes", input: `--a "b" --c 'd'`, want: []string{"--a", "b", "--c", "d"}},
 		{name: "escaped quote", input: `--flag \"quoted\"`, want: []string{"--flag", `"quoted"`}},
 		{name: "real claude args", input: "--dangerously-skip-permissions --output-format stream-json --verbose", want: []string{"--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose"}},
+		{name: "real codex args", input: `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, want: []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "-c", "model=gpt-5.3-codex", "-c", "model_reasoning_effort=high"}},
 	}
 
 	for _, tc := range tests {
@@ -431,6 +453,15 @@ func TestSplitArgs(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestIsCodexCommand(t *testing.T) {
+	assert.True(t, isCodexCommand("codex"))
+	assert.True(t, isCodexCommand("codex.exe"))
+	assert.True(t, isCodexCommand("/usr/local/bin/codex"))
+	assert.True(t, isCodexCommand(`C:\Tools\codex.exe`))
+	assert.False(t, isCodexCommand("claude"))
+	assert.False(t, isCodexCommand("agent"))
 }
 
 func TestFilterEnv(t *testing.T) {
@@ -532,7 +563,7 @@ func TestClaudeExecutor_parseStream_multipleLargeLines(t *testing.T) {
 }
 
 func TestPatternMatchError_Error(t *testing.T) {
-	err := &PatternMatchError{Pattern: "rate limit exceeded", HelpCmd: "claude /usage"}
+	err := &PatternMatchError{Pattern: "rate limit exceeded", HelpCmd: "codex /usage"}
 	assert.Equal(t, `detected error pattern: "rate limit exceeded"`, err.Error())
 }
 
@@ -596,7 +627,7 @@ func TestClaudeExecutor_Run_ErrorPattern(t *testing.T) {
 			patterns:    []string{"hit your limit"},
 			wantError:   true,
 			wantPattern: "hit your limit",
-			wantHelpCmd: "claude /usage",
+			wantHelpCmd: "codex /usage",
 			wantOutput:  "Error: You've hit your limit for today",
 		},
 		{
@@ -605,7 +636,7 @@ func TestClaudeExecutor_Run_ErrorPattern(t *testing.T) {
 			patterns:    []string{"rate limit exceeded"},
 			wantError:   true,
 			wantPattern: "rate limit exceeded",
-			wantHelpCmd: "claude /usage",
+			wantHelpCmd: "codex /usage",
 			wantOutput:  "RATE LIMIT EXCEEDED",
 		},
 		{
@@ -614,7 +645,7 @@ func TestClaudeExecutor_Run_ErrorPattern(t *testing.T) {
 			patterns:    []string{"rate limit", "quota exceeded"},
 			wantError:   true,
 			wantPattern: "rate limit",
-			wantHelpCmd: "claude /usage",
+			wantHelpCmd: "codex /usage",
 			wantOutput:  "rate limit and quota exceeded",
 		},
 	}

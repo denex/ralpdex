@@ -1070,6 +1070,94 @@ This is a test plan.
 	assert.Contains(t, inputCollector.AskDraftReviewCalls()[0].PlanContent, "# Test Plan")
 }
 
+func TestRunner_RunPlan_TranscriptPromptSignalsAreIgnored(t *testing.T) {
+	log := newMockLogger("progress-plan.txt")
+
+	promptSignalExamples := `If you need user input to create a good plan, emit a QUESTION signal:
+<<<RALPHEX:QUESTION>>>
+<<<RALPHEX:END>>>
+
+Emit the plan draft:
+<<<RALPHEX:PLAN_DRAFT>>>
+# <Title>
+<<<RALPHEX:END>>>`
+
+	firstIterationOutput := `[26-02-20 03:02:58] user
+` + promptSignalExamples + `
+[26-02-20 03:03:06] codex
+I’m checking for an existing matching plan file first.`
+
+	secondIterationOutput := `[26-02-20 03:03:12] user
+` + promptSignalExamples + `
+[26-02-20 03:03:13] codex
+<<<RALPHEX:PLAN_READY>>>`
+
+	claude := newMockExecutor([]executor.Result{
+		{Output: firstIterationOutput},
+		{Output: secondIterationOutput},
+	})
+	codex := newMockExecutor(nil)
+	inputCollector := newMockInputCollectorWithDraftReview(nil, nil)
+
+	cfg := processor.Config{
+		Mode:             processor.ModePlan,
+		PlanDescription:  "replace claude with codex",
+		MaxIterations:    50,
+		IterationDelayMs: 1,
+		AppConfig:        testAppConfig(t),
+	}
+	r := processor.NewWithExecutors(cfg, log, claude, codex, nil, &status.PhaseHolder{})
+	r.SetInputCollector(inputCollector)
+	err := r.Run(context.Background())
+
+	require.NoError(t, err)
+	assert.Len(t, claude.RunCalls(), 2)
+	assert.Empty(t, inputCollector.AskQuestionCalls())
+	assert.Empty(t, inputCollector.AskDraftReviewCalls())
+}
+
+func TestRunner_RunPlan_TranscriptParsesAssistantQuestionOnly(t *testing.T) {
+	log := newMockLogger("progress-plan.txt")
+
+	promptSignalExamples := `If needed:
+<<<RALPHEX:QUESTION>>>
+<<<RALPHEX:END>>>`
+
+	firstIterationOutput := `[26-02-20 03:02:58] user
+` + promptSignalExamples + `
+[26-02-20 03:03:06] codex
+<<<RALPHEX:QUESTION>>>
+{"question":"Which scope?","options":["Local only","Global rename"]}
+<<<RALPHEX:END>>>`
+
+	secondIterationOutput := `[26-02-20 03:03:13] codex
+<<<RALPHEX:PLAN_READY>>>`
+
+	claude := newMockExecutor([]executor.Result{
+		{Output: firstIterationOutput},
+		{Output: secondIterationOutput},
+	})
+	codex := newMockExecutor(nil)
+	inputCollector := newMockInputCollectorWithDraftReview([]string{"Local only"}, nil)
+
+	cfg := processor.Config{
+		Mode:             processor.ModePlan,
+		PlanDescription:  "replace claude with codex",
+		MaxIterations:    50,
+		IterationDelayMs: 1,
+		AppConfig:        testAppConfig(t),
+	}
+	r := processor.NewWithExecutors(cfg, log, claude, codex, nil, &status.PhaseHolder{})
+	r.SetInputCollector(inputCollector)
+	err := r.Run(context.Background())
+
+	require.NoError(t, err)
+	assert.Len(t, claude.RunCalls(), 2)
+	assert.Len(t, inputCollector.AskQuestionCalls(), 1)
+	assert.Equal(t, "Which scope?", inputCollector.AskQuestionCalls()[0].Question)
+	assert.Equal(t, []string{"Local only", "Global rename"}, inputCollector.AskQuestionCalls()[0].Options)
+}
+
 func TestRunner_RunPlan_PlanDraft_ReviseFlow(t *testing.T) {
 	log := newMockLogger("progress-plan.txt")
 	planDraftSignal := `<<<RALPHEX:PLAN_DRAFT>>>

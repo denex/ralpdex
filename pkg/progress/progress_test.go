@@ -320,6 +320,7 @@ func TestLogger_PhaseColors(t *testing.T) {
 	origDir, _ := os.Getwd()
 	require.NoError(t, os.Chdir(tmpDir))
 	defer func() { _ = os.Chdir(origDir) }()
+	t.Setenv("NO_COLOR", "")
 
 	// enable colors for this test
 	origNoColor := color.NoColor

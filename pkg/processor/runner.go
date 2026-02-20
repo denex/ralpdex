@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,6 +29,11 @@ const (
 	planIterationDivisor   = 5    // plan iterations = max_iterations / divisor
 	maxCodexSummaryLen     = 5000 // max chars for codex output summary
 )
+
+const planModeCodexReasoningEffort = "xhigh"
+const defaultCodexReasoningEffort = "high"
+
+var codexTranscriptAssistantStartRe = regexp.MustCompile(`(?m)^(?:\[[^\]\r\n]+\]\s+)?(?:codex|assistant)\s*$`)
 
 // Mode represents the execution mode.
 type Mode string
@@ -116,6 +123,7 @@ func New(cfg Config, log Logger, holder *status.PhaseHolder) *Runner {
 	if cfg.AppConfig != nil {
 		claudeExec.Command = cfg.AppConfig.ClaudeCommand
 		claudeExec.Args = cfg.AppConfig.ClaudeArgs
+		claudeExec.Args = adjustCodexPrimaryArgsForMode(cfg.Mode, claudeExec.Command, claudeExec.Args)
 		claudeExec.ErrorPatterns = cfg.AppConfig.ClaudeErrorPatterns
 	}
 
@@ -825,18 +833,24 @@ func (r *Runner) runPlanCreation(ctx context.Context) error {
 			return fmt.Errorf("claude execution: %w", result.Error)
 		}
 
-		if result.Signal == SignalFailed {
+		planOutput := extractPlanSignalOutput(result.Output)
+		signal := result.Signal
+		if signal == "" {
+			signal = detectPlanSignal(planOutput)
+		}
+
+		if signal == SignalFailed {
 			return errors.New("plan creation failed (FAILED signal received)")
 		}
 
 		// check for PLAN_READY signal
-		if IsPlanReady(result.Signal) {
+		if IsPlanReady(signal) {
 			r.log.Print("plan creation completed")
 			return nil
 		}
 
 		// check for PLAN_DRAFT signal - present draft for user review
-		draftResult := r.handlePlanDraft(ctx, result.Output)
+		draftResult := r.handlePlanDraft(ctx, planOutput)
 		if draftResult.err != nil {
 			return draftResult.err
 		}
@@ -849,7 +863,7 @@ func (r *Runner) runPlanCreation(ctx context.Context) error {
 		}
 
 		// check for QUESTION signal
-		handled, err := r.handlePlanQuestion(ctx, result.Output)
+		handled, err := r.handlePlanQuestion(ctx, planOutput)
 		if err != nil {
 			return err
 		}
@@ -867,6 +881,53 @@ func (r *Runner) runPlanCreation(ctx context.Context) error {
 	}
 
 	return fmt.Errorf("max plan iterations (%d) reached without completion", maxPlanIterations)
+}
+
+// detectPlanSignal detects explicit plan-loop control signals from raw output.
+// this fallback is used when an executor does not populate Result.Signal.
+func detectPlanSignal(output string) string {
+	lines := strings.Split(output, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+
+		// allow timestamped transcript lines: [yy-mm-dd hh:mm:ss] <<<RALPHEX:...>>>
+		if strings.HasPrefix(line, "[") {
+			if end := strings.Index(line, "]"); end >= 0 && end+1 < len(line) {
+				line = strings.TrimSpace(line[end+1:])
+			}
+		}
+
+		switch line {
+		case SignalPlanReady:
+			return SignalPlanReady
+		case SignalFailed:
+			return SignalFailed
+		}
+	}
+	return ""
+}
+
+// extractPlanSignalOutput returns the assistant segment for codex transcript-style output.
+// if no codex transcript markers are found, it returns output unchanged.
+func extractPlanSignalOutput(output string) string {
+	indices := codexTranscriptAssistantStartRe.FindAllStringIndex(output, -1)
+	if len(indices) == 0 {
+		return output
+	}
+
+	start := indices[len(indices)-1][1]
+	if start < 0 || start >= len(output) {
+		return output
+	}
+
+	assistantOutput := strings.TrimLeft(output[start:], "\r\n")
+	if strings.TrimSpace(assistantOutput) == "" {
+		return output
+	}
+	return assistantOutput
 }
 
 // handlePatternMatchError checks if err is a PatternMatchError and logs appropriate messages.
@@ -943,4 +1004,78 @@ func needsCodexBinary(appConfig *config.Config) bool {
 	default:
 		return true // "codex" or empty (default) requires codex binary
 	}
+}
+
+func adjustCodexPrimaryArgsForMode(mode Mode, command, args string) string {
+	if !isCodexPrimaryCommand(command) {
+		return args
+	}
+
+	reasoningEffort := defaultCodexReasoningEffort
+	withSearch := false
+	if mode == ModePlan {
+		reasoningEffort = planModeCodexReasoningEffort
+		withSearch = true
+	}
+
+	return normalizeCodexPrimaryArgs(args, reasoningEffort, withSearch)
+}
+
+func normalizeCodexPrimaryArgs(args, reasoningEffort string, withSearch bool) string {
+	fields := strings.Fields(args)
+	cleaned := make([]string, 0, len(fields)+5)
+
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
+		if isCodexSearchArg(field) {
+			continue
+		}
+
+		if field == "-c" && i+1 < len(fields) {
+			next := fields[i+1]
+			if isCodexReasoningArg(next) || isCodexWebSearchConfigArg(next) {
+				i++
+				continue
+			}
+		}
+
+		if isCodexReasoningArg(field) || isCodexWebSearchConfigArg(field) {
+			continue
+		}
+
+		cleaned = append(cleaned, field)
+	}
+
+	cleaned = append(cleaned, "-c", "model_reasoning_effort="+reasoningEffort)
+	if withSearch {
+		cleaned = append(cleaned, "-c", "web_search=live")
+	}
+
+	return strings.Join(cleaned, " ")
+}
+
+func isCodexReasoningArg(arg string) bool {
+	unquoted := strings.Trim(arg, `"'`)
+	return strings.HasPrefix(unquoted, "model_reasoning_effort=")
+}
+
+func isCodexSearchArg(arg string) bool {
+	return arg == "--search" || arg == "-search"
+}
+
+func isCodexWebSearchConfigArg(arg string) bool {
+	unquoted := strings.Trim(arg, `"'`)
+	return strings.HasPrefix(unquoted, "web_search=") ||
+		strings.HasPrefix(unquoted, "features.web_search_request=")
+}
+
+func isCodexPrimaryCommand(command string) bool {
+	normalized := strings.ReplaceAll(strings.TrimSpace(command), "\\", "/")
+	if normalized == "" {
+		return true // empty command falls back to default codex
+	}
+
+	base := strings.ToLower(filepath.Base(normalized))
+	base = strings.TrimSuffix(base, ".exe")
+	return base == "codex"
 }

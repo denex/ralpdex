@@ -182,8 +182,8 @@ func run(ctx context.Context, o opts) error {
 		return runWatchOnly(ctx, o, cfg, colors)
 	}
 
-	// check dependencies using configured command (or default "claude")
-	if depErr := checkClaudeDep(cfg); depErr != nil {
+	// check dependencies using configured command (or default "codex")
+	if depErr := checkPrimaryCommandDep(cfg); depErr != nil {
 		return depErr
 	}
 
@@ -432,14 +432,14 @@ func openGitService(colors *progress.Colors) (*git.Service, error) {
 	return svc, nil
 }
 
-// checkClaudeDep checks that the claude command is available in PATH.
-func checkClaudeDep(cfg *config.Config) error {
-	claudeCmd := cfg.ClaudeCommand
-	if claudeCmd == "" {
-		claudeCmd = "claude"
+// checkPrimaryCommandDep checks that the primary tool command is available in PATH.
+func checkPrimaryCommandDep(cfg *config.Config) error {
+	primaryCmd := cfg.ClaudeCommand
+	if primaryCmd == "" {
+		primaryCmd = "codex"
 	}
-	if _, err := exec.LookPath(claudeCmd); err != nil {
-		return fmt.Errorf("%s not found in PATH", claudeCmd)
+	if _, err := exec.LookPath(primaryCmd); err != nil {
+		return fmt.Errorf("%s not found in PATH", primaryCmd)
 	}
 	return nil
 }

@@ -48,7 +48,7 @@ func skipIfClaudeNotAvailable(t *testing.T) {
 	}
 	claudeCmd := cfg.ClaudeCommand
 	if claudeCmd == "" {
-		claudeCmd = "claude"
+		claudeCmd = "codex"
 	}
 	if _, err := exec.LookPath(claudeCmd); err != nil {
 		t.Skipf("%s not installed", claudeCmd)
@@ -365,22 +365,30 @@ func TestAutoPlanModeDetection(t *testing.T) {
 	})
 }
 
-func TestCheckClaudeDep(t *testing.T) {
+func TestCheckPrimaryCommandDep(t *testing.T) {
 	t.Run("uses_configured_command", func(t *testing.T) {
 		cfg := &config.Config{ClaudeCommand: "nonexistent-command-12345"}
-		err := checkClaudeDep(cfg)
+		err := checkPrimaryCommandDep(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nonexistent-command-12345")
 	})
 
-	t.Run("falls_back_to_claude_when_empty", func(t *testing.T) {
+	t.Run("falls_back_to_codex_when_empty", func(t *testing.T) {
 		cfg := &config.Config{ClaudeCommand: ""}
-		err := checkClaudeDep(cfg)
-		// may pass or fail depending on whether claude is installed
-		// but error message should reference "claude" not empty string
+		err := checkPrimaryCommandDep(cfg)
+		// may pass or fail depending on whether codex is installed
+		// but error message should reference "codex" not empty string
 		if err != nil {
-			assert.Contains(t, err.Error(), "claude")
+			assert.Contains(t, err.Error(), "codex")
 		}
+	})
+
+	t.Run("accepts_existing_executable_path", func(t *testing.T) {
+		exePath, err := os.Executable()
+		require.NoError(t, err)
+
+		cfg := &config.Config{ClaudeCommand: exePath}
+		require.NoError(t, checkPrimaryCommandDep(cfg))
 	})
 }
 

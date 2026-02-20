@@ -687,6 +687,7 @@ func TestRunner_buildPlanPrompt(t *testing.T) {
 		assert.Contains(t, prompt, "QUESTION")
 		assert.Contains(t, prompt, "PLAN_READY")
 		assert.Contains(t, prompt, "docs/plans/")
+		assert.Contains(t, prompt, "Use web search when up-to-date or external facts are needed for an accurate plan")
 	})
 
 	t.Run("custom prompt", func(t *testing.T) {

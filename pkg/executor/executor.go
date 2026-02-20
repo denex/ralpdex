@@ -8,10 +8,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/umputun/ralphex/pkg/status"
 )
+
+const defaultPrimaryCommand = "codex"
 
 //go:generate moq -out mocks/command_runner.go -pkg mocks -skip-ensure -fmt goimports . CommandRunner
 
@@ -25,7 +28,7 @@ type Result struct {
 // PatternMatchError is returned when a configured error pattern is detected in output.
 type PatternMatchError struct {
 	Pattern string // the pattern that matched
-	HelpCmd string // command to run for more information (e.g., "claude /usage")
+	HelpCmd string // command to run for more information (e.g., "codex /usage")
 }
 
 func (e *PatternMatchError) Error() string {
@@ -161,9 +164,9 @@ type streamEvent struct {
 	Result json.RawMessage `json:"result"` // can be string or object with "output" field
 }
 
-// ClaudeExecutor runs claude CLI commands with streaming JSON parsing.
+// ClaudeExecutor runs CLI commands with streaming JSON parsing.
 type ClaudeExecutor struct {
-	Command       string            // command to execute, defaults to "claude"
+	Command       string            // command to execute, defaults to "codex"
 	Args          string            // additional arguments (space-separated), defaults to standard args
 	OutputHandler func(text string) // called for each text chunk, can be nil
 	Debug         bool              // enable debug output
@@ -171,11 +174,11 @@ type ClaudeExecutor struct {
 	cmdRunner     CommandRunner     // for testing, nil uses default
 }
 
-// Run executes claude CLI with the given prompt and parses streaming JSON output.
+// Run executes CLI with the given prompt and parses streaming JSON output.
 func (e *ClaudeExecutor) Run(ctx context.Context, prompt string) Result {
 	cmd := e.Command
 	if cmd == "" {
-		cmd = "claude"
+		cmd = defaultPrimaryCommand
 	}
 
 	// build args from configured string or use defaults
@@ -189,7 +192,13 @@ func (e *ClaudeExecutor) Run(ctx context.Context, prompt string) Result {
 			"--verbose",
 		}
 	}
-	args = append(args, "-p", prompt)
+	// codex expects the prompt as a positional argument (not -p).
+	// all other tools keep Claude-compatible "-p <prompt>" mode.
+	if isCodexCommand(cmd) {
+		args = append(args, prompt)
+	} else {
+		args = append(args, "-p", prompt)
+	}
 
 	runner := e.cmdRunner
 	if runner == nil {
@@ -210,7 +219,7 @@ func (e *ClaudeExecutor) Run(ctx context.Context, prompt string) Result {
 		}
 		// non-zero exit might still have useful output
 		if result.Output == "" {
-			return Result{Error: fmt.Errorf("claude exited with error: %w", err)}
+			return Result{Error: fmt.Errorf("%s exited with error: %w", commandBase(cmd), err)}
 		}
 	}
 
@@ -219,11 +228,24 @@ func (e *ClaudeExecutor) Run(ctx context.Context, prompt string) Result {
 		return Result{
 			Output: result.Output,
 			Signal: result.Signal,
-			Error:  &PatternMatchError{Pattern: pattern, HelpCmd: "claude /usage"},
+			Error:  &PatternMatchError{Pattern: pattern, HelpCmd: commandBase(cmd) + " /usage"},
 		}
 	}
 
 	return result
+}
+
+func isCodexCommand(cmd string) bool {
+	return commandBase(cmd) == "codex"
+}
+
+func commandBase(cmd string) string {
+	normalized := strings.ReplaceAll(strings.TrimSpace(cmd), "\\", "/")
+	if normalized == "" {
+		return defaultPrimaryCommand
+	}
+	base := strings.ToLower(filepath.Base(normalized))
+	return strings.TrimSuffix(base, ".exe")
 }
 
 // parseStream reads and parses the JSON stream from claude CLI.

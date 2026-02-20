@@ -20,8 +20,8 @@ func TestValuesLoader_Load_EmbeddedOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	// all values should come from embedded defaults
-	assert.Equal(t, "claude", values.ClaudeCommand)
-	assert.Equal(t, "--dangerously-skip-permissions --output-format stream-json --verbose", values.ClaudeArgs)
+	assert.Equal(t, "codex", values.ClaudeCommand)
+	assert.Equal(t, `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, values.ClaudeArgs)
 	assert.True(t, values.CodexEnabled)
 	assert.True(t, values.CodexEnabledSet)
 	assert.Equal(t, "codex", values.CodexCommand)
@@ -114,8 +114,8 @@ func TestValuesLoader_Load_PartialConfigs(t *testing.T) {
 	assert.Equal(t, "custom/plans", values.PlansDir)
 
 	// missing values filled from embedded defaults
-	assert.Equal(t, "claude", values.ClaudeCommand)
-	assert.Equal(t, "--dangerously-skip-permissions --output-format stream-json --verbose", values.ClaudeArgs)
+	assert.Equal(t, "codex", values.ClaudeCommand)
+	assert.Equal(t, `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, values.ClaudeArgs)
 	assert.Equal(t, "codex", values.CodexCommand)
 	assert.Equal(t, 2000, values.IterationDelayMs)
 }
@@ -155,7 +155,7 @@ func TestValuesLoader_Load_NonExistentFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// should fall back to embedded defaults
-	assert.Equal(t, "claude", values.ClaudeCommand)
+	assert.Equal(t, "codex", values.ClaudeCommand)
 	assert.True(t, values.CodexEnabled)
 }
 
@@ -623,8 +623,8 @@ func TestValuesLoader_Load_AllCommentedConfigFallsBackToEmbedded(t *testing.T) {
 	require.NoError(t, err)
 
 	// should fall back to embedded defaults since file has no actual content
-	assert.Equal(t, "claude", values.ClaudeCommand)
-	assert.Equal(t, "--dangerously-skip-permissions --output-format stream-json --verbose", values.ClaudeArgs)
+	assert.Equal(t, "codex", values.ClaudeCommand)
+	assert.Equal(t, `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, values.ClaudeArgs)
 	assert.True(t, values.CodexEnabled)
 	assert.Equal(t, "codex", values.CodexCommand)
 	assert.Equal(t, "gpt-5.3-codex", values.CodexModel)
@@ -653,7 +653,7 @@ plans_dir = custom/plans
 	assert.Equal(t, "custom/plans", values.PlansDir)
 
 	// commented-out values should fall back to embedded defaults
-	assert.Equal(t, "--dangerously-skip-permissions --output-format stream-json --verbose", values.ClaudeArgs)
+	assert.Equal(t, `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`, values.ClaudeArgs)
 }
 
 func TestValuesLoader_Load_LocalAllCommentedGlobalHasContent(t *testing.T) {
@@ -702,7 +702,7 @@ func TestValuesLoader_Load_BothAllCommentedFallsBackToEmbedded(t *testing.T) {
 	require.NoError(t, err)
 
 	// both all-commented, should fall back to embedded defaults
-	assert.Equal(t, "claude", values.ClaudeCommand)
+	assert.Equal(t, "codex", values.ClaudeCommand)
 	assert.Equal(t, "docs/plans", values.PlansDir)
 	assert.True(t, values.CodexEnabled)
 }

@@ -13,14 +13,14 @@
 # ------------------------------------------------------------------------------
 
 # claude_command: the command to run claude code
-# default: "claude"
-claude_command = claude
+# default: "codex"
+claude_command = codex
 
 # claude_args: arguments passed to claude command
-# --dangerously-skip-permissions: bypass permission prompts for autonomous execution
-# --output-format stream-json: output JSON events for progress tracking
-# --verbose: enable detailed logging
-claude_args = --dangerously-skip-permissions --output-format stream-json --verbose
+# when using codex as primary tool, run in exec mode with write access.
+# execution modes use high reasoning effort.
+# plan mode is auto-adjusted by runner to xhigh reasoning effort and adds -c web_search=live.
+claude_args = exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high
 
 # ------------------------------------------------------------------------------
 # codex executor
