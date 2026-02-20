@@ -1,6 +1,6 @@
 # ralphex
 
-Autonomous plan execution with Claude Code - Go rewrite of ralph.py.
+Autonomous plan execution with codex-first defaults - Go rewrite of ralph.py.
 
 ## LLM Documentation
 
@@ -97,12 +97,13 @@ Key files:
 - `pkg/processor/prompts.go` - `getDiffInstruction()` and `replaceVariablesWithIteration()`
 - `pkg/processor/runner.go` - dispatch logic in external review loop
 
-### Alternative Providers for Claude Phases
+### Alternative Providers for Primary Phases
 
-`claude_command` and `claude_args` config options allow replacing Claude Code with any CLI that produces compatible `stream-json` output. A codex wrapper script is included at `scripts/codex-as-claude.sh`.
+`claude_command` and `claude_args` config options allow replacing the default codex-primary flow with any CLI that produces compatible `stream-json` output. A codex wrapper script is included at `scripts/codex-as-claude.sh`.
 
 Config: `claude_command = /path/to/codex-as-claude.sh` and optionally `claude_args =` (empty).
-Note: default Claude flags may still be passed due to config fallback; wrappers should ignore unknown flags gracefully (the included script does this via `*) shift ;;`).
+Default args come from config fallback (`exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`), and wrappers should ignore unknown flags gracefully (the included script does this via `*) shift ;;`).
+When `claude_command` resolves to `codex` (or is empty), runner enforces mode-specific args: plan mode sets `model_reasoning_effort=xhigh` and adds `-c web_search=live`; non-plan modes set `model_reasoning_effort=high` and remove explicit web search overrides. Non-codex commands are not rewritten.
 Env vars: `CODEX_MODEL`, `CODEX_SANDBOX`, `CODEX_VERBOSE` (set to 1 for command output).
 Documentation: `docs/custom-providers.md`
 

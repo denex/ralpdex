@@ -1,6 +1,6 @@
-# Custom Providers for Claude Phases
+# Custom Providers for Primary Phases
 
-ralphex uses Claude Code as the primary agent for task execution and code reviews. The `claude_command` and `claude_args` configuration options allow replacing Claude Code with any CLI tool that produces compatible output — codex, Gemini CLI, local LLMs, or custom scripts.
+ralphex defaults to codex as the primary command for task execution and planning. The `claude_command` and `claude_args` configuration options allow replacing that primary command with any CLI tool that produces compatible output — Claude Code, Gemini CLI, local LLMs, or custom scripts.
 
 ## How it works
 
@@ -27,9 +27,14 @@ ralphex prompts instruct the agent to emit signals like `<<<RALPHEX:COMPLETED>>>
 <claude_command> <claude_args...> -p <prompt>
 ```
 
-When `claude_args` has a value (default: `--dangerously-skip-permissions --output-format stream-json --verbose`), those flags are split and prepended before `-p`. When `ClaudeExecutor.Args` is empty at the code level, only `-p <prompt>` is appended. Note that setting `claude_args =` (empty) in the config file may not clear the default due to config fallback behavior — the embedded default value is preserved when the user-specified value is empty.
+When `claude_args` has a value (default: `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`), those flags are split and prepended before `-p`. When `ClaudeExecutor.Args` is empty at the code level, only `-p <prompt>` is appended. Note that setting `claude_args =` (empty) in the config file may not clear the default due to config fallback behavior — the embedded default value is preserved when the user-specified value is empty.
 
-**Wrapper scripts should ignore unknown flags gracefully** — use a catch-all `*) shift ;;` in the argument parser (as the included codex wrapper does). This way the wrapper works regardless of whether default Claude flags are passed through.
+When `claude_command` resolves to `codex` (or is empty), ralphex applies mode-aware argument normalization before execution:
+- Plan mode enforces `-c model_reasoning_effort=xhigh` and ensures `-c web_search=live` is present exactly once
+- Non-plan modes enforce `-c model_reasoning_effort=high` and remove explicit web search overrides (`--search`, `-search`, `web_search=...`, `features.web_search_request=...`)
+- Non-codex commands are left unchanged
+
+**Wrapper scripts should ignore unknown flags gracefully** — use a catch-all `*) shift ;;` in the argument parser (as the included codex wrapper does). This way the wrapper works regardless of which default primary flags are passed through.
 
 ## Codex wrapper (included example)
 

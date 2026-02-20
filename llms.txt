@@ -1,6 +1,6 @@
 # ralphex
 
-Autonomous plan execution with Claude Code. Executes implementation plans task by task in fresh Claude sessions, then runs multi-phase code reviews. Write a plan, start ralphex, walk away.
+Autonomous plan execution with codex-first defaults. Executes implementation plans task by task in fresh primary-CLI sessions (codex by default), then runs multi-phase code reviews. Write a plan, start ralphex, walk away.
 
 **GitHub:** https://github.com/umputun/ralphex
 
@@ -43,7 +43,7 @@ ralphex --tasks-only docs/plans/feature.md
 ralphex --review --base-ref develop
 ralphex --review --base-ref abc1234 --skip-finalize
 
-# interactive plan creation — Claude asks questions, generates draft,
+# interactive plan creation — primary coding CLI asks questions (codex by default), generates draft,
 # user reviews with accept/revise/interactive review ($EDITOR)/reject
 ralphex --plan "add user authentication"
 
@@ -60,9 +60,10 @@ RALPHEX_CONFIG_DIR=~/my-config ralphex docs/plans/feature.md
 
 ## Requirements
 
-- `claude` - Claude Code CLI (required)
+- `codex` - primary coding CLI (required by default config)
+- `claude` - optional, only if you configure `claude_command = claude`
 - `fzf` - for plan selection (optional)
-- `codex` - for external review (optional)
+- custom primary/external tools are supported via `claude_command` and `external_review_tool`
 
 ## Customization
 
@@ -82,7 +83,7 @@ Configuration directory: `~/.config/ralphex/` (override with `--config-dir` or `
 
 **Custom external review:** Set `external_review_tool = custom` and `custom_review_script = /path/to/script.sh` to use your own AI tool instead of codex. Script receives prompt file path as single argument, outputs findings to stdout. ralphex passes the output to Claude for evaluation and fixing.
 
-**Alternative providers for Claude phases:** `claude_command` and `claude_args` config options allow replacing Claude Code with any CLI that produces compatible stream-json output. A codex wrapper is included at `scripts/codex-as-claude.sh`. Set `claude_command = /path/to/wrapper` in config. Wrappers should ignore unknown flags gracefully. See `docs/custom-providers.md` for details on writing wrappers for other tools (Gemini CLI, local LLMs, etc.).
+**Alternative providers for primary phases:** `claude_command` and `claude_args` config options allow replacing the default codex-primary flow with any CLI that produces compatible stream-json output. A codex wrapper is included at `scripts/codex-as-claude.sh`. Set `claude_command = /path/to/wrapper` in config. Wrappers should ignore unknown flags gracefully. If `claude_command` resolves to codex, plan mode enforces `model_reasoning_effort=xhigh` with `-c web_search=live`, while non-plan modes enforce `model_reasoning_effort=high` and remove explicit web search overrides. See `docs/custom-providers.md` for details.
 
 **Notifications** (`notify_*` fields in config): Optional alerts on completion/failure via `telegram`, `email`, `slack`, `webhook`, or `custom` script. Disabled by default. See `docs/notifications.md` for setup.
 

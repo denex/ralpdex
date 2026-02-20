@@ -8,13 +8,13 @@
   <a href="https://goreportcard.com/report/github.com/umputun/ralphex"><img src="https://goreportcard.com/badge/github.com/umputun/ralphex?v=2" alt="Go Report Card"></a>
 </p>
 
-<h2 align="center">Autonomous plan execution with Claude Code</h2>
+<h2 align="center">Autonomous plan execution with codex-first defaults</h2>
 
-*ralphex is a standalone CLI tool that runs in your terminal from the root of a git repository. It orchestrates Claude Code to execute implementation plans autonomously - no IDE plugins or cloud services required, just Claude Code and a single binary.*
+*ralphex is a standalone CLI tool that runs in your terminal from the root of a git repository. It orchestrates a primary coding CLI (codex by default) to execute implementation plans autonomously - no IDE plugins or cloud services required, just codex and a single binary.*
 
-Claude Code is powerful but interactive - it requires you to watch, approve, and guide each step. For complex features spanning multiple tasks, this means hours of babysitting. Worse, as context fills up during long sessions, the model's quality degrades - it starts making mistakes, forgetting earlier decisions, and producing worse code.
+AI coding CLIs are powerful but interactive - they require you to watch, approve, and guide each step. For complex features spanning multiple tasks, this means hours of babysitting. Worse, as context fills up during long sessions, the model's quality degrades - it starts making mistakes, forgetting earlier decisions, and producing worse code.
 
-ralphex solves both problems. Each task executes in a fresh Claude Code session with minimal context, keeping the model sharp throughout the entire plan. Write a plan with tasks and validation commands, start ralphex, and walk away. Come back to find your feature implemented, reviewed, and committed - or check the progress log to see what it's doing.
+ralphex solves both problems. Each task executes in a fresh primary-CLI session with minimal context, keeping the model sharp throughout the entire plan. Write a plan with tasks and validation commands, start ralphex, and walk away. Come back to find your feature implemented, reviewed, and committed - or check the progress log to see what it's doing.
 
 <details markdown>
 <summary>Task Execution Screenshot</summary>
@@ -41,7 +41,7 @@ ralphex solves both problems. Each task executes in a fresh Claude Code session 
 
 - **Zero setup** - works out of the box with sensible defaults, no configuration required
 - **Autonomous task execution** - executes plan tasks one at a time with automatic retry
-- **Interactive plan creation** - create plans through dialogue with Claude via `--plan` flag
+- **Interactive plan creation** - create plans through dialogue with the primary coding CLI (codex by default) via `--plan` flag
 - **Multi-phase code review** - 5 agents → codex → 2 agents review pipeline
 - **Custom review agents** - configurable agents with `{{agent:name}}` template system and user defined prompts
 - **Automatic branch creation** - creates git branch from plan filename
@@ -90,7 +90,7 @@ ralphex executes plans in four phases with automated code reviews, plus an optio
 ### Phase 1: Task Execution
 
 1. Reads plan file and finds first incomplete task (`### Task N:` with `- [ ]` checkboxes)
-2. Sends task to Claude Code for execution
+2. Sends task to the configured primary coding CLI (codex by default)
 3. Runs validation commands (tests, linters) after each task
 4. Marks checkboxes as done `[x]`, commits changes
 5. Repeats until all tasks complete or max iterations reached
@@ -164,6 +164,8 @@ Review-only mode (`--review`) runs the full review pipeline (Phase 2 → Phase 3
 3. Run `ralphex --review`
 
 ralphex compares the branch against the default branch (`git diff master...HEAD`), launches multi-agent reviews, and iterates fixes until all agents report clean. No plan file is required — if provided, it gives reviewers additional context about the intended changes.
+
+When `claude_command` resolves to `codex` (default), ralphex enforces mode-specific codex args automatically: plan mode uses `-c model_reasoning_effort=xhigh` with `-c web_search=live`, while non-plan modes enforce `-c model_reasoning_effort=high` and remove explicit web search overrides.
 
 ```bash
 # switch to feature branch with existing changes
@@ -249,7 +251,7 @@ export RALPHEX_IMAGE=my-ralphex
 
 Then use `ralphex` as usual - it runs in a container with Claude Code and Codex pre-installed. The script shows which image it's using at startup.
 
-**Why use Docker?** ralphex runs Claude Code with `--dangerously-skip-permissions`, giving it full access to execute commands and modify files. Running in a container provides isolation - Claude can only access the mounted project directory, not your entire system. This makes autonomous execution significantly safer.
+**Why use Docker?** ralphex runs the configured coding CLI with full filesystem access (`--dangerously-bypass-approvals-and-sandbox` in default codex setup). Running in a container provides isolation - the coding tool can only access the mounted project directory, not your entire system. This makes autonomous execution significantly safer.
 
 <details markdown>
 <summary>Isolation details</summary>
@@ -592,9 +594,10 @@ Agents to launch:
 
 ## Requirements
 
-- `claude` - Claude Code CLI
+- `codex` - primary coding CLI (required by default config)
+- `claude` - optional, only if you configure `claude_command = claude`
 - `fzf` - for plan selection (optional)
-- `codex` - for external review (optional)
+- custom primary/external tools are supported via `claude_command` and `external_review_tool`
 
 ## Configuration
 
@@ -644,8 +647,8 @@ Use `--config-dir` or `RALPHEX_CONFIG_DIR` to override the global config locatio
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `claude_command` | Claude CLI command | `claude` |
-| `claude_args` | Claude CLI arguments | `--dangerously-skip-permissions --output-format stream-json --verbose` |
+| `claude_command` | Primary coding CLI command | `codex` |
+| `claude_args` | Primary coding CLI arguments | `exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high` |
 | `codex_enabled` | Enable codex review phase | `true` |
 | `codex_command` | Codex CLI command | `codex` |
 | `codex_model` | Codex model ID | `gpt-5.3-codex` |
@@ -670,6 +673,8 @@ Use `--config-dir` or `RALPHEX_CONFIG_DIR` to override the global config locatio
 | `color_info` | Informational messages color (hex) | `#b4b4b4` |
 | `claude_error_patterns` | Patterns to detect in claude output (comma-separated) | `You've hit your limit` |
 | `codex_error_patterns` | Patterns to detect in codex output (comma-separated) | `Rate limit,quota exceeded` |
+
+Mode-aware primary codex args: when `claude_command` resolves to `codex` (or is empty), plan mode enforces `model_reasoning_effort=xhigh` and includes `web_search=live` exactly once; non-plan modes enforce `model_reasoning_effort=high` and remove explicit web search overrides. If `claude_command` is non-codex, ralphex leaves `claude_args` unchanged.
 
 Colors use 24-bit RGB (true color), supported natively by all modern terminals (iTerm2, Kitty, Terminal.app, Windows Terminal, GNOME Terminal, Alacritty, Zed, VS Code, etc). Older terminals will degrade gracefully. Use `--no-color` to disable colors entirely.
 
@@ -761,9 +766,9 @@ When running ralphex in Docker, your script must be accessible inside the contai
 - Ensure script dependencies are available (curl, jq, etc. are included in base image)
 - Environment variables (API keys) must be passed to container: `-e OPENROUTER_API_KEY`
 
-### Using Alternative Providers for Claude Phases
+### Using Alternative Providers for Primary Phases
 
-The `claude_command` and `claude_args` config options let you replace Claude Code with any CLI that produces compatible `stream-json` output. This means codex, Gemini CLI, local LLMs, or any other tool can drive task execution and review phases — you just need a wrapper script that translates the tool's output format.
+The `claude_command` and `claude_args` config options let you replace the default codex-primary flow with any CLI that produces compatible `stream-json` output. This means Claude Code, Gemini CLI, local LLMs, or any other tool can drive task execution and review phases — you just need a wrapper script that translates the tool's output format.
 
 A working example is included: [`scripts/codex-as-claude.sh`](scripts/codex-as-claude.sh) wraps codex to produce Claude-compatible events. To use it:
 
@@ -773,7 +778,9 @@ claude_command = /path/to/codex-as-claude.sh
 claude_args =
 ```
 
-Setting `claude_args` to empty is optional. Note that default Claude flags (`--dangerously-skip-permissions`, `--output-format stream-json`, `--verbose`) may still be passed due to config fallback behavior. Wrapper scripts should ignore unknown flags gracefully — the included script does this via its `*) shift ;;` catch-all.
+Setting `claude_args` to empty is optional. Default args come from config fallback (`exec --dangerously-bypass-approvals-and-sandbox -c model="gpt-5.3-codex" -c model_reasoning_effort=high`) and wrappers should ignore unknown flags gracefully — the included script does this via its `*) shift ;;` catch-all.
+
+When the primary command is codex, plan mode also adds `-c web_search=live` and upgrades reasoning to `model_reasoning_effort=xhigh`; non-plan modes remove explicit web search overrides and enforce `model_reasoning_effort=high`.
 
 The wrapper supports environment variables:
 - `CODEX_MODEL` - codex model to use (default: codex default)
@@ -799,7 +806,7 @@ Reference them directly in prompt files by name, e.g., `qa-expert - "Review for 
 
 **What if codex isn't installed?**
 
-Codex is optional. If not installed, the codex review phase is skipped automatically.
+Codex is required by default because it is the default primary command. If you don't use codex, set `claude_command` to another compatible CLI. External codex review is still optional and can be disabled (`external_review_tool = none`).
 
 **Can I run just reviews without task execution?**
 
@@ -837,7 +844,7 @@ Completed tasks are already committed to the feature branch. To resume, re-run `
 
 Yes, two approaches depending on the situation:
 
-1. **Edit CLAUDE.md** — for behavioral changes (coding style, libraries, constraints). Each task runs in a fresh Claude Code session that reads CLAUDE.md at startup, so changes take effect on the next task or iteration automatically. No need to stop ralphex.
+1. **Edit CLAUDE.md** — for behavioral changes (coding style, libraries, constraints). Each task runs in a fresh primary-CLI session that reads CLAUDE.md at startup, so changes take effect on the next task or iteration automatically. No need to stop ralphex.
 
 2. **Stop, edit plan, re-run** — for structural changes (reorder tasks, add/remove tasks, change requirements). Press Ctrl+C to stop, edit the plan file (uncheck `[x]` → `[ ]` to redo tasks, add new tasks, modify descriptions), then re-run `ralphex docs/plans/<plan>.md`. Ralphex picks up from the first incomplete task and adapts to the updated plan.
 
@@ -864,9 +871,9 @@ claude_args = --force --output-format stream-json
 
 Key differences: `agent` command (not `claude`), `--force` flag (not `--dangerously-skip-permissions`). Stream format and signals are compatible. *Note: this is community-tested, not officially supported. Compatibility depends on Cursor maintaining Claude Code compatibility.*
 
-**Can I use codex (or another model) for task execution instead of Claude?**
+**Can I use a provider other than codex for task execution?**
 
-Yes. Use the included wrapper script that translates codex output to Claude's stream-json format:
+Yes. Set `claude_command` to any compatible CLI or wrapper that emits Claude-compatible stream-json events:
 
 ```ini
 claude_command = /path/to/codex-as-claude.sh
